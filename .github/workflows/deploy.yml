@@ -1,25 +1,25 @@
-name: Deploy to Vercel
+# name: Deploy to Vercel
 
-on:
-  push:
-    branches:
-      - main
+# on:
+#   push:
+#     branches:
+#       - main
 
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
+# jobs:
+#   deploy:
+#     runs-on: ubuntu-latest
 
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
+#     steps:
+#       - name: Checkout Repository
+#         uses: actions/checkout@v4
 
-      - name: Install Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 18
+#       - name: Install Node.js
+#         uses: actions/setup-node@v4
+#         with:
+#           node-version: 18
 
-      - name: Install Vercel CLI
-        run: npm install -g vercel
+#       - name: Install Vercel CLI
+#         run: npm install -g vercel
 
-      - name: Deploy to Vercel
-        run: vercel --prod --yes --token P5cCOG7GD7OrWaWrAHh9mlaA
+#       - name: Deploy to Vercel
+#         run: vercel --prod --yes --token P5cCOG7GD7OrWaWrAHh9mlaA
