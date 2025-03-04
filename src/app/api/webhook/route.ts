@@ -105,7 +105,7 @@ export async function POST(req: NextRequest) {
 
                                 let isDuplicate = false;
                                 // let messages: any[] = [];
-                                let messages: any[] = await fetch(`${process.env.BASE_URL}/api/users`).then(res => res.json());
+                                let messages: any[] = await fetch(`http://45.33.101.184:3000/users`).then(res => res.json());
 
                                 isDuplicate = messages.some(msg => msg.flow_token === flowToken);
 
@@ -128,7 +128,7 @@ export async function POST(req: NextRequest) {
                                         )
                                     );
 
-                                    await fetch(`${process.env.BASE_URL}/api/users`, {
+                                    await fetch(`http://45.33.101.184:3000/users`, {
                                         method: 'POST',
                                         headers: {
                                             'Content-Type': 'application/json'
