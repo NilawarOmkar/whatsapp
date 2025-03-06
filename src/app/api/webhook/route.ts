@@ -147,7 +147,7 @@ async function sendCatalogMessage(to: string) {
             if (!acc[Grade]) {
                 acc[Grade] = [];
             }
-            acc[Grade].push(`- ${Model} (${Storage}) - ₹${Price}`);
+            acc[Grade].push(`- ${Model} (${Storage}) - $${Price}`);
             return acc;
         }, {});
 
