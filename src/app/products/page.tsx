@@ -1,6 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
+import axios from 'axios';
+import { Upload as UploadIcon } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -10,13 +12,13 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { Input } from '@/components/ui/input';
 
 interface PhoneVariant {
   storage: string;
@@ -68,6 +70,8 @@ export default function SmartphoneCatalog() {
     stock: 0,
   });
   const [selectedPhoneId, setSelectedPhoneId] = useState<string | null>(null);
+  const [file, setFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const updateStock = (phoneId: string, variantIndex: number, newStock: number) => {
     setPhones(prev => prev.map(phone => {
@@ -80,22 +84,49 @@ export default function SmartphoneCatalog() {
     }));
   };
 
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const selectedFile = e.target.files[0];
+      setFile(selectedFile);
+      await handleFileUpload(selectedFile);
+    }
+  };
+
+  const handleFileUpload = async (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      await axios.post('http://45.33.101.184:3000/products/upload', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      alert('File uploaded successfully');
+      setFile(null);
+    } catch (error) {
+      console.error('Error uploading file:', error);
+      alert('Failed to upload file');
+      setFile(null);
+    }
+  };
+
   const addNewModel = () => {
     if (!currentModel.brand || !currentModel.model || currentModel.price <= 0) return;
-    
+
     const newSmartphone: Smartphone = {
       id: Math.random().toString(36).substr(2, 9),
       ...currentModel,
       variants: [],
     };
-    
+
     setPhones([...phones, newSmartphone]);
     setCurrentModel({ brand: '', model: '', price: 0 });
   };
 
   const addVariant = () => {
     if (!selectedPhoneId || !currentVariant.storage || currentVariant.stock <= 0) return;
-    
+
     setPhones(prev => prev.map(phone => {
       if (phone.id === selectedPhoneId) {
         return {
@@ -105,7 +136,7 @@ export default function SmartphoneCatalog() {
       }
       return phone;
     }));
-    
+
     setCurrentVariant({ storage: '', colors: [], stock: 0 });
   };
 
@@ -119,48 +150,20 @@ export default function SmartphoneCatalog() {
         <CardHeader className="pb-2">
           <div className="flex justify-between items-center">
             <CardTitle className="text-2xl">Smartphone Inventory</CardTitle>
-            <Dialog>
-              <DialogTrigger asChild>
-                <Button>Add New Model</Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-md">
-                <DialogHeader>
-                  <DialogTitle>Add New Smartphone Model</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Brand *</Label>
-                      <Input
-                        placeholder="e.g., Apple"
-                        value={currentModel.brand}
-                        onChange={(e) => setCurrentModel(prev => ({ ...prev, brand: e.target.value }))}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Model *</Label>
-                      <Input
-                        placeholder="e.g., iPhone 15 Pro"
-                        value={currentModel.model}
-                        onChange={(e) => setCurrentModel(prev => ({ ...prev, model: e.target.value }))}
-                      />
-                    </div>
-                    <div className="space-y-2 col-span-2">
-                      <Label>Base Price *</Label>
-                      <Input
-                        type="number"
-                        placeholder="Enter base price"
-                        value={currentModel.price}
-                        onChange={(e) => setCurrentModel(prev => ({ ...prev, price: Number(e.target.value) }))}
-                      />
-                    </div>
-                  </div>
-                  <Button onClick={addNewModel} className="w-full">
-                    Create Model
-                  </Button>
-                </div>
-              </DialogContent>
-            </Dialog>
+            <div className="flex items-center gap-4">
+              {file && <span className="text-sm text-muted-foreground">{file.name}</span>}
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileChange}
+                className="hidden"
+                accept=".xlsx, .xls"
+              />
+              <Button onClick={() => fileInputRef.current?.click()}>
+                <UploadIcon className="mr-2 h-4 w-4" />
+                Choose Excel File
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -196,8 +199,8 @@ export default function SmartphoneCatalog() {
                                     <Badge variant="outline">{variant.storage}</Badge>
                                     <div className="flex gap-2">
                                       {variant.colors.map((color) => (
-                                        <div 
-                                          key={color} 
+                                        <div
+                                          key={color}
                                           className="h-6 w-6 rounded-full border-2 shadow-sm"
                                           style={{ backgroundColor: color }}
                                         />
@@ -229,8 +232,8 @@ export default function SmartphoneCatalog() {
                     <TableCell className="text-right space-x-2">
                       <Dialog>
                         <DialogTrigger asChild>
-                          <Button 
-                            variant="outline" 
+                          <Button
+                            variant="outline"
                             size="sm"
                             onClick={() => setSelectedPhoneId(phone.id)}
                           >
@@ -266,7 +269,7 @@ export default function SmartphoneCatalog() {
                                         : [...prev.colors, color.value]
                                     }))}
                                   >
-                                    <div 
+                                    <div
                                       className="h-6 w-6 rounded-full"
                                       style={{ backgroundColor: color.value }}
                                     />
@@ -288,8 +291,8 @@ export default function SmartphoneCatalog() {
                           </div>
                         </DialogContent>
                       </Dialog>
-                      <Button 
-                        variant="destructive" 
+                      <Button
+                        variant="destructive"
                         size="sm"
                         onClick={() => discontinueModel(phone.id)}
                       >

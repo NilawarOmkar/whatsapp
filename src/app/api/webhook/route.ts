@@ -1,11 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-// import getRabbitMQChannel from "@/lib/rabbitmq";
 import { readExcel } from "@/lib/readExcel";
 
 const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN;
 const WHATSAPP_API_TOKEN = process.env.NEXT_PUBLIC_WHATSAPP_API_TOKEN;
 const WHATSAPP_PHONE_NUMBER_ID = process.env.NEXT_PUBLIC_WHATSAPP_PHONE_NUMBER_ID;
-let messageHistory: any[] = [];
 let userStates: { [key: string]: string } = {};
 function log(message: string, emoji = '📄') {
     const timestamp = new Date().toISOString();
@@ -31,7 +29,6 @@ export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
         const entry = body.entry?.[0];
-        // const channel = await getRabbitMQChannel();
 
         if (entry) {
             const changes = entry.changes?.[0];
@@ -50,25 +47,11 @@ export async function POST(req: NextRequest) {
                             userStates[from] = "";
                         } else {
                             await sendMainMenu(from);
-                            messageHistory.push({
-                                type: "received",
-                                from,
-                                message: message.text.body,
-                                timestamp: new Date().toISOString()
-                            });
                         }
                     }
 
                     if (["image", "document", "audio", "video", "sticker"].includes(message.type)) {
                         const media = message[message.type];
-                        messageHistory.push({
-                            type: "received",
-                            from,
-                            message: `[${message.type.toUpperCase()}] ${media.caption || ''}`,
-                            mediaUrl: media.url || media.link,
-                            mediaType: message.type,
-                            timestamp: new Date().toISOString()
-                        });
                     }
 
                     if (message.type === "interactive") {
@@ -76,13 +59,6 @@ export async function POST(req: NextRequest) {
                         if (interaction.type === "list_reply") {
                             const selected = interaction.list_reply;
                             log(`${from} selected menu option: ${selected.title}`, '🔘');
-
-                            messageHistory.push({
-                                type: "received",
-                                from,
-                                message: `${selected.title}`,
-                                timestamp: new Date().toISOString()
-                            });
 
                             switch (selected.id) {
                                 case "inventory_row":
@@ -95,6 +71,10 @@ export async function POST(req: NextRequest) {
                                 case "notifications_row":
                                     await handleNotificationOptIn(from);
                                     break;
+                                case "unsubscribe_row":
+                                    console.log("Trying to unsubscribe ",from)
+                                    await unsubscribeUser(from);
+                                    break;
                             }
                         }
                         else if (interaction.type === "nfm_reply") {
@@ -103,23 +83,11 @@ export async function POST(req: NextRequest) {
                                 const flowToken = flowResponse.flow_token === "unused" ? from : flowResponse.flow_token;
 
                                 let isDuplicate = false;
-                                // let messages: any[] = [];
                                 let messages: any[] = await fetch(`http://45.33.101.184:3000/users`).then(res => res.json());
 
                                 isDuplicate = messages.some(msg => msg.flow_token === flowToken);
 
                                 if (!isDuplicate) {
-                                    // log(`${from} completed form submission`, '📋');
-                                    // channel.sendToQueue(
-                                    //     "whatsapp_incoming_queue",
-                                    //     Buffer.from(
-                                    //         JSON.stringify(flowResponse, (key, value) =>
-                                    //             key === "flow_token" && value === "unused" ? from : value
-                                    //         )
-                                    //     ),
-                                    //     { persistent: true }
-                                    // );
-                                    // console.log("Form data sent to RabbitMQ");
                                     log(`${from} completed form submission`, '📋');
                                     const transformedFlowResponse = JSON.parse(
                                         JSON.stringify(flowResponse, (key, value) =>
@@ -139,13 +107,6 @@ export async function POST(req: NextRequest) {
                                 } else {
                                     console.log("Duplicate entry");
                                 }
-
-                                messageHistory.push({
-                                    type: "flow_submission",
-                                    from,
-                                    flowData: flowResponse,
-                                    timestamp: new Date().toISOString()
-                                });
 
                             } catch (error: any) {
                                 log(`Form processing failed for ${from}: ${error.message}`, '❌');
@@ -179,9 +140,20 @@ async function sendCatalogMessage(to: string) {
     try {
         log(`Sending product catalog to ${to}`, '📋');
         const url = `https://graph.facebook.com/v19.0/${WHATSAPP_PHONE_NUMBER_ID}/messages`;
-        const { products } = await readExcel();
-        const messageBody = Object.entries(products)
-            .map(([grade, items]) => `*Grade ${grade}*\n${items.join("\n")}`)
+        const products: { Grade: string; Model: string; Storage: string; Price: number }[] = await fetch("http://45.33.101.184:3000/products/products").then(res => res.json());
+        
+        const productsData: { [key: string]: string[] } = products.reduce((acc: { [key: string]: string[] }, product) => {
+            const { Grade, Model, Storage, Price } = product;
+            if (!acc[Grade]) {
+                acc[Grade] = [];
+            }
+            acc[Grade].push(`- ${Model} (${Storage}) - ₹${Price}`);
+            return acc;
+        }, {});
+
+        const messageBody = Object.entries(productsData)
+            .sort(([gradeA], [gradeB]) => gradeA.localeCompare(gradeB))
+            .map(([grade, items]) => `*Grade ${grade}*\n${(items as string[]).join("\n")}`)
             .join("\n\n");
 
         const response = await fetch(url, {
@@ -209,13 +181,6 @@ async function sendCatalogMessage(to: string) {
         }
 
         log(`Catalog sent successfully to ${to}`, '✅');
-        messageHistory.push({
-            type: "sent",
-            to,
-            messageId: responseData.messages?.[0]?.id,
-            messageType: "catalog",
-            timestamp: new Date().toISOString()
-        });
 
         return responseData;
     } catch (error: any) {
@@ -251,13 +216,6 @@ async function sendShippingUpdate(to: string) {
         }
 
         log(`Shipping update sent to ${to}`, '✅');
-        messageHistory.push({
-            type: "sent",
-            to,
-            messageId: responseData.messages?.[0]?.id,
-            messageType: "shipping_update",
-            timestamp: new Date().toISOString()
-        });
 
         return responseData;
     } catch (error: any) {
@@ -268,17 +226,6 @@ async function sendShippingUpdate(to: string) {
 
 const handleNotificationOptIn = async (phone: string) => {
     try {
-        // const payload = {
-        //     messaging_product: "whatsapp",
-        //     to: phone,
-        //     type: "template",
-        //     template: {
-        //         name: "hello_world",
-        //         language: {
-        //             code: "en_US",
-        //         },
-        //     },
-        // };
         const payload = {
             messaging_product: "whatsapp",
             to: phone,
@@ -378,6 +325,10 @@ async function sendMainMenu(to: string) {
                                 {
                                     id: "notifications_row",
                                     title: "📢 Subscribe Broadcasts",
+                                },
+                                {
+                                    id: "unsubscribe_row",
+                                    title: "🚫 Unsubscribe Broadcasts",
                                 }
                             ]
                         }
@@ -404,14 +355,6 @@ async function sendMainMenu(to: string) {
         }
 
         log(`Main menu sent successfully to ${to}`, '✅');
-        messageHistory.push({
-            type: "sent",
-            to,
-            messageId: responseData.messages?.[0]?.id,
-            messageType: "main_menu",
-            timestamp: new Date().toISOString()
-        });
-
         return responseData;
     } catch (error: any) {
         log(`Main menu send error to ${to}: ${error.message}`, '❌');
@@ -446,14 +389,6 @@ async function requestOrderNumber(to: string) {
         }
 
         log(`Order number request sent to ${to}`, '✅');
-        messageHistory.push({
-            type: "sent",
-            to,
-            messageId: responseData.messages?.[0]?.id,
-            messageType: "order_number_request",
-            timestamp: new Date().toISOString()
-        });
-
         return responseData;
     } catch (error: any) {
         log(`Order number request error to ${to}: ${error.message}`, '❌');
@@ -488,17 +423,35 @@ async function sendShippingStatus(to: string, orderId: string) {
         }
 
         log(`Shipping status sent to ${to}`, '✅');
-        messageHistory.push({
-            type: "sent",
-            to,
-            messageId: responseData.messages?.[0]?.id,
-            messageType: "shipping_status",
-            timestamp: new Date().toISOString()
-        });
-
         return responseData;
     } catch (error: any) {
         log(`Shipping status error to ${to}: ${error.message}`, '❌');
+        throw error;
+    }
+}
+
+async function unsubscribeUser(flowToken: string) {
+    try {
+        log(`Unsubscribing user with flow token ${flowToken}`, '🚫');
+
+        const response = await fetch(`http://45.33.101.184:3000/users/${flowToken}`, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+
+        const responseData = await response.json();
+
+        if (!response.ok) {
+            log(`Unsubscribe failed for flow token ${flowToken}: ${responseData.error?.message}`, '❌');
+            throw new Error(responseData.error?.message);
+        }
+
+        log(`User with flow token ${flowToken} unsubscribed successfully`, '✅');
+        return responseData;
+    } catch (error: any) {
+        log(`Unsubscribe error for flow token ${flowToken}: ${error.message}`, '❌');
         throw error;
     }
 }
