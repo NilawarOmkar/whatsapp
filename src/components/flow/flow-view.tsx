@@ -5,14 +5,22 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Eye, Trash2 } from "lucide-react";
-import { Dialog, DialogTrigger, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { Eye, Trash2, Share2 } from "lucide-react";
+import { Dialog, DialogTrigger, DialogContent, DialogTitle, DialogHeader, DialogFooter } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 
 export const ViewFlows = () => {
     const [data, setData] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(false);
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+    const [phoneNumbers, setPhoneNumbers] = useState<string[]>([]);
+    const [sharingFlowId, setSharingFlowId] = useState<string | null>(null);
+    const [selectedNumbers, setSelectedNumbers] = useState<string[]>([]);
+    const [newNumber, setNewNumber] = useState("");
 
     useEffect(() => {
         const fetchFlows = async () => {
@@ -31,24 +39,84 @@ export const ViewFlows = () => {
         fetchFlows();
     }, []);
 
+    useEffect(() => {
+        async function fetchMessages() {
+            try {
+                const res = await fetch("/api/proxy");
+                if (!res.ok) throw new Error("Failed to fetch users");
+                const users: { phone_number: string }[] = await res.json();
+                const numbers = [...new Set(users.map((user: any) => String(user.phone_number)))];
+                setPhoneNumbers(numbers);
+            } catch (error) {
+                console.error("Error fetching messages:", error);
+            }
+        }
+
+        fetchMessages();
+    }, []);
+
+    useEffect(() => {
+        if (!sharingFlowId) {
+            setSelectedNumbers([]);
+        }
+    }, [sharingFlowId]);
+
     const deleteFlow = async (id: string) => {
         if (!confirm("Are you sure you want to delete this flow?")) return;
         try {
-            const response = await fetch("/api/flows", {
+            const response = await fetch(`/api/flows`, {
                 method: "DELETE",
-                headers: {
-                    "Content-Type": "application/json",
-                },
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ id }),
             });
 
-            if (!response.ok) {
-                throw new Error("Failed to delete flow");
-            }
-
-            setData((prevData) => prevData.filter((flow) => flow.id !== id));
+            if (!response.ok) throw new Error("Failed to delete flow");
+            setData((prev) => prev.filter((flow) => flow.id !== id));
         } catch (error) {
             console.error("Error deleting flow:", error);
+        }
+    };
+
+    const shareFlow = async (id: string, numbers: string[]) => {
+        if (numbers.length === 0) {
+            alert("Please select at least one user");
+            return;
+        }
+
+        try {
+            await Promise.all(
+                numbers.map(async (number) => {
+                    const response = await fetch("/api/share-flow", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ id, number }),
+                    });
+                    if (!response.ok) throw new Error(`Failed to share with ${number}`);
+                })
+            );
+            alert("Flow shared successfully with selected users!");
+        } catch (error) {
+            console.error("Error sharing flow:", error);
+            alert("Failed to share with some users");
+        } finally {
+            setSharingFlowId(null);
+        }
+    };
+
+    const toggleSelectAll = (checked: boolean) => {
+        if (checked) {
+            setSelectedNumbers([...phoneNumbers]);
+        } else {
+            setSelectedNumbers([]);
+        }
+    };
+
+    const addNewNumber = () => {
+        const trimmedNumber = newNumber.trim();
+        if (trimmedNumber && !phoneNumbers.includes(trimmedNumber)) {
+            setPhoneNumbers(prev => [...prev, trimmedNumber]);
+            setSelectedNumbers(prev => [...prev, trimmedNumber]);
+            setNewNumber("");
         }
     };
 
@@ -110,19 +178,34 @@ export const ViewFlows = () => {
                                             {flow.preview?.preview_url ? (
                                                 <Dialog>
                                                     <DialogTrigger asChild>
-                                                        <Eye onClick={() => setPreviewUrl(flow.preview.preview_url)} className="cursor-pointer text-blue-500 hover:text-blue-700 transition" />
+                                                        <Eye 
+                                                            onClick={() => setPreviewUrl(flow.preview.preview_url)} 
+                                                            className="cursor-pointer text-blue-500 hover:text-blue-700 transition" 
+                                                        />
                                                     </DialogTrigger>
                                                     <DialogContent className="max-w-3xl">
                                                         <DialogTitle>Flow Preview</DialogTitle>
                                                         {previewUrl && (
-                                                            <iframe src={previewUrl} width="100%" height="800px" className="rounded-md border"></iframe>
+                                                            <iframe 
+                                                                src={previewUrl} 
+                                                                width="100%" 
+                                                                height="800px" 
+                                                                className="rounded-md border"
+                                                            />
                                                         )}
                                                     </DialogContent>
                                                 </Dialog>
                                             ) : (
                                                 <span className="text-muted-foreground">No Preview</span>
                                             )}
-                                            <Trash2 onClick={() => deleteFlow(flow.id)} className="cursor-pointer text-red-500 hover:text-red-700 transition" />
+                                            <Trash2 
+                                                onClick={() => deleteFlow(flow.id)} 
+                                                className="cursor-pointer text-red-500 hover:text-red-700 transition" 
+                                            />
+                                            <Share2 
+                                                onClick={() => setSharingFlowId(flow.id)} 
+                                                className="cursor-pointer text-green-500 hover:text-green-700 transition" 
+                                            />
                                         </TableCell>
                                     </TableRow>
                                 ))
@@ -131,6 +214,69 @@ export const ViewFlows = () => {
                     </Table>
                 </CardContent>
             </Card>
+
+            <Dialog open={!!sharingFlowId} onOpenChange={() => setSharingFlowId(null)}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center justify-between">
+                            <span>Select Users to Share With</span>
+                            {/* <div className="flex items-center gap-2">
+                                <Checkbox
+                                    id="select-all"
+                                    checked={selectedNumbers.length === phoneNumbers.length}
+                                    indeterminate={selectedNumbers.length > 0 && selectedNumbers.length < phoneNumbers.length}
+                                    onCheckedChange={toggleSelectAll}
+                                />
+                                <Label htmlFor="select-all">Select All</Label>
+                            </div> */}
+                        </DialogTitle>
+                    </DialogHeader>
+                    
+                    <div className="grid gap-4 py-4">
+                        <div className="flex gap-2">
+                            <Input
+                                value={newNumber}
+                                onChange={(e) => setNewNumber(e.target.value)}
+                                placeholder="Add new phone number"
+                                className="flex-1"
+                                onKeyDown={(e) => e.key === "Enter" && addNewNumber()}
+                            />
+                            <Button onClick={addNewNumber} disabled={!newNumber.trim()}>
+                                Add
+                            </Button>
+                        </div>
+
+                        {phoneNumbers.length === 0 ? (
+                            <div>No users found</div>
+                        ) : (
+                            phoneNumbers.map((number) => (
+                                <div key={number} className="flex items-center gap-2">
+                                    <Checkbox
+                                        id={number}
+                                        checked={selectedNumbers.includes(number)}
+                                        onCheckedChange={(checked) => {
+                                            if (checked) {
+                                                setSelectedNumbers([...selectedNumbers, number]);
+                                            } else {
+                                                setSelectedNumbers(selectedNumbers.filter(n => n !== number));
+                                            }
+                                        }}
+                                    />
+                                    <Label htmlFor={number}>{number}</Label>
+                                </div>
+                            ))
+                        )}
+                    </div>
+                    <DialogFooter>
+                        <Button
+                            onClick={() => sharingFlowId && shareFlow(sharingFlowId, selectedNumbers)}
+                            disabled={selectedNumbers.length === 0}
+                        >
+                            Share with Selected ({selectedNumbers.length})
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
-}
+};

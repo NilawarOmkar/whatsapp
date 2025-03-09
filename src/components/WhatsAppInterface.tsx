@@ -34,22 +34,15 @@ export default function SendMessagePage(): JSX.Element {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     async function fetchMessages() {
       try {
-        // const res = await fetch("/api/messages");
-        // if (!res.ok) {
-        //   throw new Error("Failed to fetch messages");
-        // }
-        // const data: { messages: { flow_token: string }[] } = await res.json();
-        // console.log("Fetched messages:", data.messages);
-
         const res = await fetch("/api/proxy");
         if (!res.ok) {
           throw new Error("Failed to fetch users");
         }
-        const users: { flow_token: string }[] = await res.json();
+        const users: { phone_number: string }[] = await res.json();
         console.log("Fetched users:", users);
 
         // Extract unique phone numbers
-        const numbers = [...new Set(users.map((user: any) => String(user.flow_token)))];
+        const numbers = [...new Set(users.map((user: any) => String(user.phone_number)))];
         setPhoneNumbers(numbers);
 
         console.log("Extracted phone numbers:", numbers);

@@ -82,10 +82,10 @@ export default function Page() {
         console.log("Fetched users:", users);
 
         const formattedMessages = users.map((user: any) => ({
-          firstName: user.screen_0_First_0 || "N/A",
-          lastName: user.screen_0_Last_1 || "N/A",
-          email: user.screen_0_Email_2 || "N/A",
-          phone: user.flow_token || "N/A",
+          firstName: user.first_name || "N/A",
+          lastName: user.last_name || "N/A",
+          email: user.email || "N/A",
+          phone: user.phone_number || "N/A",
         }));
 
         setMessages(formattedMessages);

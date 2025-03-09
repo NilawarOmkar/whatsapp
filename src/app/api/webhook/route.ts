@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
                                     await handleNotificationOptIn(from);
                                     break;
                                 case "unsubscribe_row":
-                                    console.log("Trying to unsubscribe ",from)
+                                    console.log("Trying to unsubscribe ", from)
                                     await unsubscribeUser(from);
                                     break;
                             }
@@ -80,33 +80,54 @@ export async function POST(req: NextRequest) {
                         else if (interaction.type === "nfm_reply") {
                             try {
                                 const flowResponse = JSON.parse(interaction.nfm_reply.response_json);
-                                const flowToken = flowResponse.flow_token === "unused" ? from : flowResponse.flow_token;
-
-                                let isDuplicate = false;
-                                let messages: any[] = await fetch(`http://45.33.101.184:3000/users`).then(res => res.json());
-
-                                isDuplicate = messages.some(msg => msg.flow_token === flowToken);
-
-                                if (!isDuplicate) {
-                                    log(`${from} completed form submission`, '📋');
-                                    const transformedFlowResponse = JSON.parse(
-                                        JSON.stringify(flowResponse, (key, value) =>
-                                            key === "flow_token" && value === "unused" ? from : value
-                                        )
-                                    );
-
-                                    await fetch(`http://45.33.101.184:3000/users`, {
+                                console.log(flowResponse);
+                                if (flowResponse.flow_token === "unused") {
+                                    flowResponse.flow_token = from;
+                                    await fetch(`http://66.228.61.181:3000/users`, {
                                         method: 'POST',
                                         headers: {
                                             'Content-Type': 'application/json'
                                         },
-                                        body: JSON.stringify(transformedFlowResponse)
+                                        body: JSON.stringify(flowResponse)
                                     });
-
-                                    console.log("Form data saved to state", transformedFlowResponse);
-                                } else {
-                                    console.log("Duplicate entry");
                                 }
+                                else {
+                                    await fetch("http://66.228.61.181:3000/rabbitmq/send", {
+                                        method: 'POST',
+                                        headers: {
+                                            'Content-Type': 'application/json'
+                                        },
+                                        body: JSON.stringify(flowResponse)
+                                    })
+                                }
+                                // console.log(response);
+                                // const flowToken = flowResponse.flow_token === "unused" ? from : flowResponse.flow_token;
+
+                                // let isDuplicate = false;
+                                // let messages: any[] = await fetch(`http://45.33.101.184:3000/users`).then(res => res.json());
+
+                                // isDuplicate = messages.some(msg => msg.flow_token === flowToken);
+
+                                // if (!isDuplicate) {
+                                //     log(`${from} completed form submission`, '📋');
+                                //     const transformedFlowResponse = JSON.parse(
+                                //         JSON.stringify(flowResponse, (key, value) =>
+                                //             key === "flow_token" && value === "unused" ? from : value
+                                //         )
+                                //     );
+
+                                // await fetch(`http://45.33.101.184:3000/users`, {
+                                //     method: 'POST',
+                                //     headers: {
+                                //         'Content-Type': 'application/json'
+                                //     },
+                                //     body: JSON.stringify(transformedFlowResponse)
+                                // });
+
+                                //     console.log("Form data saved to state", transformedFlowResponse);
+                                // } else {
+                                //     console.log("Duplicate entry");
+                                // }
 
                             } catch (error: any) {
                                 log(`Form processing failed for ${from}: ${error.message}`, '❌');
@@ -141,7 +162,7 @@ async function sendCatalogMessage(to: string) {
         log(`Sending product catalog to ${to}`, '📋');
         const url = `https://graph.facebook.com/v19.0/${WHATSAPP_PHONE_NUMBER_ID}/messages`;
         const products: { Grade: string; Model: string; Storage: string; Price: number }[] = await fetch("http://45.33.101.184:3000/products/products").then(res => res.json());
-        
+
         const productsData: { [key: string]: string[] } = products.reduce((acc: { [key: string]: string[] }, product) => {
             const { Grade, Model, Storage, Price } = product;
             if (!acc[Grade]) {
