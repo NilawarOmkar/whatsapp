@@ -103,35 +103,6 @@ export async function POST(req: NextRequest) {
                                         })
                                     })
                                 }
-                                // console.log(response);
-                                // const flowToken = flowResponse.flow_token === "unused" ? from : flowResponse.flow_token;
-
-                                // let isDuplicate = false;
-                                // let messages: any[] = await fetch(`http://45.33.101.184:3000/users`).then(res => res.json());
-
-                                // isDuplicate = messages.some(msg => msg.flow_token === flowToken);
-
-                                // if (!isDuplicate) {
-                                //     log(`${from} completed form submission`, '📋');
-                                //     const transformedFlowResponse = JSON.parse(
-                                //         JSON.stringify(flowResponse, (key, value) =>
-                                //             key === "flow_token" && value === "unused" ? from : value
-                                //         )
-                                //     );
-
-                                // await fetch(`http://45.33.101.184:3000/users`, {
-                                //     method: 'POST',
-                                //     headers: {
-                                //         'Content-Type': 'application/json'
-                                //     },
-                                //     body: JSON.stringify(transformedFlowResponse)
-                                // });
-
-                                //     console.log("Form data saved to state", transformedFlowResponse);
-                                // } else {
-                                //     console.log("Duplicate entry");
-                                // }
-
                             } catch (error: any) {
                                 log(`Form processing failed for ${from}: ${error.message}`, '❌');
                             }

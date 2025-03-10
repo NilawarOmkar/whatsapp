@@ -41,7 +41,6 @@ export default function SendMessagePage(): JSX.Element {
         const users: { phone_number: string }[] = await res.json();
         console.log("Fetched users:", users);
 
-        // Extract unique phone numbers
         const numbers = [...new Set(users.map((user: any) => String(user.phone_number)))];
         setPhoneNumbers(numbers);
 
