@@ -97,7 +97,10 @@ export async function POST(req: NextRequest) {
                                         headers: {
                                             'Content-Type': 'application/json'
                                         },
-                                        body: JSON.stringify(flowResponse)
+                                        body: JSON.stringify({
+                                            ...flowResponse,
+                                            phone_number: from
+                                        })
                                     })
                                 }
                                 // console.log(response);

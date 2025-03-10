@@ -12,12 +12,21 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 
+interface User {
+  id: number;
+  first_name: string;
+  last_name: string;
+  phone_number: string;
+  created_at: string;
+  email: string;
+}
+
 export const ViewFlows = () => {
     const [data, setData] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(false);
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-    const [phoneNumbers, setPhoneNumbers] = useState<string[]>([]);
+    const [users, setUsers] = useState<User[]>([]);
     const [sharingFlowId, setSharingFlowId] = useState<string | null>(null);
     const [selectedNumbers, setSelectedNumbers] = useState<string[]>([]);
     const [newNumber, setNewNumber] = useState("");
@@ -44,9 +53,12 @@ export const ViewFlows = () => {
             try {
                 const res = await fetch("/api/proxy");
                 if (!res.ok) throw new Error("Failed to fetch users");
-                const users: { phone_number: string }[] = await res.json();
-                const numbers = [...new Set(users.map((user: any) => String(user.phone_number)))];
-                setPhoneNumbers(numbers);
+                const users: User[] = await res.json();
+                const processedUsers = users.map(user => ({
+                    ...user,
+                    phone_number: String(user.phone_number)
+                }));
+                setUsers(processedUsers);
             } catch (error) {
                 console.error("Error fetching messages:", error);
             }
@@ -105,7 +117,7 @@ export const ViewFlows = () => {
 
     const toggleSelectAll = (checked: boolean) => {
         if (checked) {
-            setSelectedNumbers([...phoneNumbers]);
+            setSelectedNumbers(users.map(user => user.phone_number));
         } else {
             setSelectedNumbers([]);
         }
@@ -113,8 +125,15 @@ export const ViewFlows = () => {
 
     const addNewNumber = () => {
         const trimmedNumber = newNumber.trim();
-        if (trimmedNumber && !phoneNumbers.includes(trimmedNumber)) {
-            setPhoneNumbers(prev => [...prev, trimmedNumber]);
+        if (trimmedNumber && !users.some(user => user.phone_number === trimmedNumber)) {
+            setUsers(prev => [...prev, {
+                id: Date.now(),
+                first_name: "",
+                last_name: "",
+                phone_number: trimmedNumber,
+                created_at: new Date().toISOString(),
+                email: ""
+            }]);
             setSelectedNumbers(prev => [...prev, trimmedNumber]);
             setNewNumber("");
         }
@@ -220,15 +239,6 @@ export const ViewFlows = () => {
                     <DialogHeader>
                         <DialogTitle className="flex items-center justify-between">
                             <span>Select Users to Share With</span>
-                            {/* <div className="flex items-center gap-2">
-                                <Checkbox
-                                    id="select-all"
-                                    checked={selectedNumbers.length === phoneNumbers.length}
-                                    indeterminate={selectedNumbers.length > 0 && selectedNumbers.length < phoneNumbers.length}
-                                    onCheckedChange={toggleSelectAll}
-                                />
-                                <Label htmlFor="select-all">Select All</Label>
-                            </div> */}
                         </DialogTitle>
                     </DialogHeader>
                     
@@ -246,23 +256,27 @@ export const ViewFlows = () => {
                             </Button>
                         </div>
 
-                        {phoneNumbers.length === 0 ? (
+                        {users.length === 0 ? (
                             <div>No users found</div>
                         ) : (
-                            phoneNumbers.map((number) => (
-                                <div key={number} className="flex items-center gap-2">
+                            users.map((user) => (
+                                <div key={user.phone_number} className="flex items-center gap-2">
                                     <Checkbox
-                                        id={number}
-                                        checked={selectedNumbers.includes(number)}
+                                        id={user.phone_number}
+                                        checked={selectedNumbers.includes(user.phone_number)}
                                         onCheckedChange={(checked) => {
                                             if (checked) {
-                                                setSelectedNumbers([...selectedNumbers, number]);
+                                                setSelectedNumbers([...selectedNumbers, user.phone_number]);
                                             } else {
-                                                setSelectedNumbers(selectedNumbers.filter(n => n !== number));
+                                                setSelectedNumbers(selectedNumbers.filter(n => n !== user.phone_number));
                                             }
                                         }}
                                     />
-                                    <Label htmlFor={number}>{number}</Label>
+                                    <Label htmlFor={user.phone_number}>
+                                        {user.first_name || user.last_name 
+                                            ? `${user.first_name} ${user.last_name}`.trim()
+                                            : user.phone_number}
+                                    </Label>
                                 </div>
                             ))
                         )}
