@@ -111,47 +111,36 @@ export async function POST(req: NextRequest) {
     try {
         const formData = await req.formData();
         const phone = formData.get("phone") as string;
-        const payload = {
-            messaging_product: "whatsapp",
-            to: phone,
-            type: "template",
-            template: {
-                name: "hello_world",
-                language: {
-                    code: "en_US",
-                },
-            },
-        };
-
         // const payload = {
         //     messaging_product: "whatsapp",
         //     to: phone,
         //     type: "template",
         //     template: {
-        //         name: "form",
+        //         name: "hello_world",
         //         language: {
         //             code: "en_US",
         //         },
-        //         components: [
-        //             {
-        //                 type: "header",
-        //                 parameters: [
-        //                     {
-        //                         type: "image",
-        //                         image: {
-        //                             id: "28418804584401992",
-        //                         },
-        //                     },
-        //                 ],
-        //             },
-        //             {
-        //                 type: "button",
-        //                 sub_type: "flow",
-        //                 index: "0",
-        //             },
-        //         ],
         //     },
         // };
+
+        const payload = {
+            messaging_product: "whatsapp",
+            to: phone,
+            type: "template",
+            template: {
+                name: "utility_template",
+                language: {
+                    code: "en_US",
+                },
+                components: [
+                    {
+                        type: "button",
+                        sub_type: "flow",
+                        index: "0",
+                    },
+                ],
+            },
+        };
 
         const response = await fetch(
             `https://graph.facebook.com/v19.0/${PHONE_NUMBER_ID}/messages`,
