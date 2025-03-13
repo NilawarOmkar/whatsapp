@@ -15,7 +15,7 @@ import {
 
 // Sidebar navigation items
 const navItems = [
-  { title: "Send Message", url: "/" },
+  { title: "Send Message", url: "/message" },
   { title: "Users", url: "/dashboard" },
   { title: "Products", url: "/products" },
   { title: "Flows", url: "/conference" },

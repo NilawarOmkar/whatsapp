@@ -18,17 +18,10 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en" className="h-full">
-      <body className={`${inter.className} flex flex-col h-full`}>
-        <SidebarProvider>
-          <AppSidebar className="fixed left-0 top-0 h-screen w-64 border-r" />
-          <main className="flex-1 min-h-screen">
-            <SidebarTrigger />
-            {children}
-            <Toaster />
-          </main>
-          <Toaster />
-        </SidebarProvider>
+    <html lang="en">
+      <body className={`${inter.className}`}>
+        {children}
+        <Toaster />
       </body>
     </html>
   )
