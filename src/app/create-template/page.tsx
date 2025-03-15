@@ -1,5 +1,4 @@
-"use client"
-
+'use client'
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -7,380 +6,302 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent } from "@/components/ui/card"
-import { ArrowLeft, ArrowRight, Save } from "lucide-react"
-import Link from "next/link"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { ArrowLeft, Save, MessageSquareText } from "lucide-react"
 
-export default function TemplateForm() {
-  // Step tracking: 1 = category selection, 2 = template details, 3 = template structure
-  const [step, setStep] = useState(1)
+export default function TemplateCreator() {
+  const [template, setTemplate] = useState({
+    category: 'MARKETING',
+    name: '',
+    language: 'en_US',
+    header: '',
+    body: '',
+    footer: '',
+    buttons: [] as Array<{ type: string; text: string; url?: string }>
+  })
 
-  // Category selection state
-  const [category, setCategory] = useState("")
-  const [subcategory, setSubcategory] = useState("")
-
-  // Template details state
-  const [templateName, setTemplateName] = useState("")
-  const [language, setLanguage] = useState("en")
-  const [embedFlow, setEmbedFlow] = useState(false)
-
-  const nextStep = () => setStep(step + 1)
-  const prevStep = () => setStep(step - 1)
-
-  const handleSaveTemplate = async () => {
-    // Here you would implement the logic to save the template
-    // using environment variables for API endpoints/credentials
-    console.log("Saving template...")
+  const addButton = () => {
+    setTemplate(prev => ({
+      ...prev,
+      buttons: [...prev.buttons, { type: 'QUICK_REPLY', text: '' }]
+    }))
   }
 
-  // Only show subcategories for the selected category
-  const availableSubcategories = subcategories[category] || []
+  const updateButton = (index: number, field: string, value: string) => {
+    const updatedButtons = template.buttons.map((btn, i) =>
+      i === index ? { ...btn, [field]: value } : btn
+    )
+    setTemplate(prev => ({ ...prev, buttons: updatedButtons }))
+  }
+
+  const generateJSON = () => ({
+    name: template.name,
+    language: template.language,
+    category: template.category,
+    components: [
+      ...(template.header ? [{
+        type: 'HEADER',
+        format: 'TEXT',
+        text: template.header,
+        example: { 
+          header_text: [template.header] // Array of strings
+        }
+      }] : []),
+      {
+        type: 'BODY',
+        text: template.body,
+        example: {
+          body_text: [["hello"]] // REQUIRED format for static text
+        }
+      },
+      ...(template.footer ? [{
+        type: 'FOOTER',
+        text: template.footer
+      }] : []),
+      ...(template.buttons.length > 0 ? [{
+        type: 'BUTTONS',
+        buttons: template.buttons.map(btn => ({
+          type: btn.type,
+          text: btn.text,
+          ...(btn.type === 'URL' && { url: btn.url })
+        }))
+      }] : [])
+    ]
+  })
+  
+  const handleSaveTemplate = async () => {
+    const jsonData = generateJSON();
+
+    try {
+      const response = await fetch('/api/templates', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(jsonData),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to save template');
+      }
+
+      const result = await response.json();
+      alert('Template saved successfully');
+    } catch (error) {
+      console.error('Error saving template:', error);
+      alert('Failed to save template');
+    }
+  };
 
   return (
-    <div className="container mx-auto px-4 py-6 max-w-4xl">
-      <div className="flex items-center gap-4 mb-6">
-        <Button variant="ghost" size="icon" asChild>
-          <Link href="/">
-            <ArrowLeft className="h-4 w-4" />
-          </Link>
-        </Button>
-        <h1 className="text-2xl font-bold">Create New Template</h1>
-      </div>
+    <div className="flex h-screen bg-gray-50">
+      {/* Left Panel - Editor */}
+      <div className="flex-1 p-6 overflow-y-auto">
+        <div className="max-w-3xl mx-auto space-y-6">
+          {/* Top Row */}
+          <div className="grid grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <Label>Category</Label>
+              <Select value={template.category} onValueChange={v => setTemplate(p => ({ ...p, category: v }))}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="MARKETING">Marketing</SelectItem>
+                  <SelectItem value="UTILITY">Utility</SelectItem>
+                  <SelectItem value="AUTHENTICATION">Authentication</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
-      {/* Progress indicator */}
-      <div className="mb-8">
-        <div className="flex justify-between">
-          <div className="text-sm font-medium">Category Selection</div>
-          <div className="text-sm font-medium">Template Details</div>
-          <div className="text-sm font-medium">Template Structure</div>
-        </div>
-        <div className="relative mt-2">
-          <div className="absolute inset-0 flex items-center">
-            <div className="w-full h-1 bg-muted"></div>
+            <div className="space-y-2">
+              <Label>Template Name</Label>
+              <Input
+                value={template.name}
+                onChange={e => setTemplate(p => ({ ...p, name: e.target.value }))}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Language</Label>
+              <Select value={template.language} onValueChange={v => setTemplate(p => ({ ...p, language: v }))}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="en_US">English (US)</SelectItem>
+                  <SelectItem value="es_ES">Spanish</SelectItem>
+                  <SelectItem value="fr_FR">French</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-          <div className="relative flex justify-between">
-            <div
-              className={`w-8 h-8 rounded-full flex items-center justify-center ${step >= 1 ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}
-            >
-              1
-            </div>
-            <div
-              className={`w-8 h-8 rounded-full flex items-center justify-center ${step >= 2 ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}
-            >
-              2
-            </div>
-            <div
-              className={`w-8 h-8 rounded-full flex items-center justify-center ${step >= 3 ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}
-            >
-              3
-            </div>
-          </div>
-        </div>
-      </div>
 
-      {/* Step 1: Category Selection */}
-      {step === 1 && (
-        <Card>
-          <CardContent className="p-6">
-            <h2 className="text-xl font-semibold mb-4">Select Template Category</h2>
-
-            <div className="space-y-6">
-              <div className="space-y-3">
-                <Label htmlFor="category">Category</Label>
-                <RadioGroup
-                  value={category}
-                  onValueChange={(value) => {
-                    setCategory(value)
-                    setSubcategory("") // Reset subcategory when category changes
-                  }}
-                  className="grid grid-cols-1 gap-4"
-                >
-                  {categories.map((cat) => (
-                    <div key={cat.id} className="flex items-start space-x-2">
-                      <RadioGroupItem value={cat.id} id={cat.id} className="mt-1" />
-                      <Label htmlFor={cat.id} className="font-normal cursor-pointer">
-                        <div className="font-medium">{cat.name}</div>
-                        <div className="text-sm text-muted-foreground">{cat.description}</div>
-                      </Label>
-                    </div>
-                  ))}
-                </RadioGroup>
+          {/* Header Section */}
+          <Card>
+            <CardContent className="p-4 space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm font-medium">Header (Optional)</Label>
+                <span className="text-xs text-gray-500">{template.header.length}/60</span>
               </div>
+              <Input
+                value={template.header}
+                onChange={e => setTemplate(p => ({ ...p, header: e.target.value }))}
+                placeholder="Enter header text"
+                maxLength={60}
+              />
+            </CardContent>
+          </Card>
 
-              {category && availableSubcategories.length > 0 && (
-                <div className="space-y-3">
-                  <Label htmlFor="subcategory">Type</Label>
-                  <RadioGroup value={subcategory} onValueChange={setSubcategory} className="grid grid-cols-1 gap-4">
-                    {availableSubcategories.map((subcat) => (
-                      <div key={subcat.id} className="flex items-start space-x-2">
-                        <RadioGroupItem value={subcat.id} id={subcat.id} className="mt-1" />
-                        <Label htmlFor={subcat.id} className="font-normal cursor-pointer">
-                          <div className="font-medium">{subcat.name}</div>
-                          <div className="text-sm text-muted-foreground">{subcat.description}</div>
-                        </Label>
-                      </div>
-                    ))}
-                  </RadioGroup>
-                </div>
-              )}
+          {/* Body Section */}
+          <Card>
+            <CardContent className="p-4 space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm font-medium">Body*</Label>
+                <span className="text-xs text-gray-500">{template.body.length}/1024</span>
+              </div>
+              <Textarea
+                value={template.body}
+                onChange={e => setTemplate(p => ({ ...p, body: e.target.value }))}
+                placeholder="Enter body text"
+                rows={4}
+                maxLength={1024}
+                className="min-h-[120px]"
+              />
+            </CardContent>
+          </Card>
 
-              <div className="flex justify-end">
-                <Button onClick={nextStep} disabled={!category || (!subcategory && availableSubcategories.length > 0)}>
-                  Next
-                  <ArrowRight className="ml-2 h-4 w-4" />
+          {/* Footer Section */}
+          <Card>
+            <CardContent className="p-4 space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm font-medium">Footer (Optional)</Label>
+                <span className="text-xs text-gray-500">{template.footer.length}/60</span>
+              </div>
+              <Input
+                value={template.footer}
+                onChange={e => setTemplate(p => ({ ...p, footer: e.target.value }))}
+                placeholder="Enter footer text"
+                maxLength={60}
+              />
+            </CardContent>
+          </Card>
+
+          {/* Buttons Section */}
+          <Card>
+            <CardContent className="p-4 space-y-4">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm font-medium">Buttons</Label>
+                <Button variant="outline" size="sm" onClick={addButton}>
+                  Add Button
                 </Button>
               </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
-      {/* Step 2: Template Details */}
-      {step === 2 && (
-        <Card>
-          <CardContent className="p-6">
-            <h2 className="text-xl font-semibold mb-4">Template Details</h2>
-
-            <div className="space-y-6">
-              <div className="space-y-3">
-                <Label htmlFor="templateName">Template Name</Label>
-                <Input
-                  id="templateName"
-                  placeholder="Enter template name"
-                  value={templateName}
-                  onChange={(e) => setTemplateName(e.target.value)}
-                />
-              </div>
-
-              <div className="space-y-3">
-                <Label htmlFor="language">Language</Label>
-                <Select value={language} onValueChange={setLanguage}>
-                  <SelectTrigger id="language">
-                    <SelectValue placeholder="Select language" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="en">English</SelectItem>
-                    <SelectItem value="es">Spanish</SelectItem>
-                    <SelectItem value="fr">French</SelectItem>
-                    <SelectItem value="de">German</SelectItem>
-                    <SelectItem value="it">Italian</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {(category === "marketing" && subcategory === "flows") ||
-                (category === "utility" && subcategory === "flows" && (
-                  <div className="flex items-start space-x-2">
-                    <Checkbox
-                      id="embedFlow"
-                      checked={embedFlow}
-                      onCheckedChange={(checked) => setEmbedFlow(checked as boolean)}
-                    />
-                    <div className="grid gap-1.5 leading-none">
-                      <Label htmlFor="embedFlow" className="font-normal cursor-pointer">
-                        Embed Flow
-                      </Label>
-                      <p className="text-sm text-muted-foreground">Include an interactive flow within this template</p>
+              {template.buttons.map((button, index) => (
+                <div key={index} className="space-y-2 border p-3 rounded">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <Label>Button Type</Label>
+                      <Select
+                        value={button.type}
+                        onValueChange={v => updateButton(index, 'type', v)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="QUICK_REPLY">Quick Reply</SelectItem>
+                          <SelectItem value="URL">URL</SelectItem>
+                          <SelectItem value="PHONE_NUMBER">Phone Number</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
+
+                    <div className="space-y-1">
+                      <Label>Button Text</Label>
+                      <Input
+                        value={button.text}
+                        onChange={e => updateButton(index, 'text', e.target.value)}
+                        placeholder="Button text"
+                      />
+                    </div>
+                  </div>
+
+                  {button.type === 'URL' && (
+                    <div className="space-y-1">
+                      <Label>URL</Label>
+                      <Input
+                        value={button.url || ''}
+                        onChange={e => updateButton(index, 'url', e.target.value)}
+                        placeholder="https://example.com"
+                      />
+                    </div>
+                  )}
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      {/* Right Panel - Preview */}
+      <div className="w-96 border-l bg-white p-6">
+        <div className="sticky top-6">
+          <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+            <MessageSquareText className="h-5 w-5" />
+            WhatsApp Preview
+          </h3>
+
+          <div className="bg-gray-50 p-4 rounded-lg shadow-sm">
+            {/* Header Preview */}
+            {template.header && (
+              <div className="bg-green-600 text-white rounded-t-lg p-3 mb-2">
+                <p className="text-center font-medium">{template.header}</p>
+              </div>
+            )}
+
+            {/* Body Preview */}
+            <div className="bg-white p-3 rounded-lg">
+              <p className="text-gray-800 whitespace-pre-wrap">
+                {template.body || ""}
+              </p>
+            </div>
+
+            {/* Footer Preview */}
+            {template.footer && (
+              <div className="mt-2 p-3 bg-gray-100 rounded-b-lg">
+                <p className="text-xs text-gray-600">{template.footer}</p>
+              </div>
+            )}
+
+            {/* Buttons Preview */}
+            {template.buttons.length > 0 && (
+              <div className="mt-4 space-y-2">
+                {template.buttons.map((button, index) => (
+                  <div
+                    key={index}
+                    className={`p-2 rounded text-center ${button.type === 'QUICK_REPLY'
+                        ? 'bg-gray-100 hover:bg-gray-200'
+                        : 'bg-blue-100 hover:bg-blue-200 text-blue-800'
+                      }`}
+                  >
+                    {button.text || "Button text"}
                   </div>
                 ))}
-
-              <div className="flex justify-between">
-                <Button variant="outline" onClick={prevStep}>
-                  <ArrowLeft className="mr-2 h-4 w-4" />
-                  Back
-                </Button>
-                <Button onClick={nextStep} disabled={!templateName}>
-                  Next
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </Button>
               </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+            )}
+          </div>
 
-      {/* Step 3: Template Structure */}
-      {step === 3 && (
-        <Card>
-          <CardContent className="p-6">
-            <h2 className="text-xl font-semibold mb-4">Template Structure</h2>
-
-            <Tabs defaultValue="header" className="mb-6">
-              <TabsList className="grid grid-cols-4 mb-4">
-                <TabsTrigger value="header">Header</TabsTrigger>
-                <TabsTrigger value="body">Body</TabsTrigger>
-                <TabsTrigger value="button">Button</TabsTrigger>
-                <TabsTrigger value="footer">Footer</TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="header" className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="headerTitle">Header Title</Label>
-                  <Input id="headerTitle" placeholder="Enter header title" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="headerImage">Header Image</Label>
-                  <div className="border border-dashed rounded-md p-6 text-center">
-                    <p className="text-sm text-muted-foreground mb-2">Drag and drop an image or click to upload</p>
-                    <Button variant="secondary" size="sm">
-                      Upload Image
-                    </Button>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="headerDescription">Header Description</Label>
-                  <Textarea id="headerDescription" placeholder="Enter header description" rows={3} />
-                </div>
-              </TabsContent>
-
-              <TabsContent value="body" className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="bodyContent">Body Content</Label>
-                  <Textarea id="bodyContent" placeholder="Enter body content" rows={6} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="bodyMedia">Body Media</Label>
-                  <div className="border border-dashed rounded-md p-6 text-center">
-                    <p className="text-sm text-muted-foreground mb-2">Drag and drop media or click to upload</p>
-                    <Button variant="secondary" size="sm">
-                      Upload Media
-                    </Button>
-                  </div>
-                </div>
-              </TabsContent>
-
-              <TabsContent value="button" className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="buttonText">Button Text</Label>
-                  <Input id="buttonText" placeholder="Enter button text" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="buttonUrl">Button URL</Label>
-                  <Input id="buttonUrl" placeholder="Enter button URL" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="buttonStyle">Button Style</Label>
-                  <Select defaultValue="primary">
-                    <SelectTrigger id="buttonStyle">
-                      <SelectValue placeholder="Select button style" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="primary">Primary</SelectItem>
-                      <SelectItem value="secondary">Secondary</SelectItem>
-                      <SelectItem value="outline">Outline</SelectItem>
-                      <SelectItem value="link">Link</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </TabsContent>
-
-              <TabsContent value="footer" className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="footerText">Footer Text</Label>
-                  <Textarea id="footerText" placeholder="Enter footer text" rows={3} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="footerLinks">Footer Links</Label>
-                  <div className="space-y-2">
-                    <div className="flex gap-2">
-                      <Input placeholder="Link text" className="flex-1" />
-                      <Input placeholder="URL" className="flex-1" />
-                    </div>
-                    <div className="flex gap-2">
-                      <Input placeholder="Link text" className="flex-1" />
-                      <Input placeholder="URL" className="flex-1" />
-                    </div>
-                    <Button variant="outline" size="sm" className="w-full">
-                      Add Another Link
-                    </Button>
-                  </div>
-                </div>
-              </TabsContent>
-            </Tabs>
-
-            <div className="border rounded-md p-4 mb-6">
-              <h3 className="text-sm font-medium mb-2">Preview</h3>
-              <div className="bg-muted/50 rounded-md p-4 min-h-[200px] flex items-center justify-center">
-                <p className="text-muted-foreground">Template preview will appear here</p>
-              </div>
-            </div>
-
-            <div className="flex justify-between">
-              <Button variant="outline" onClick={prevStep}>
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                Back
-              </Button>
-              <Button onClick={handleSaveTemplate}>
-                <Save className="mr-2 h-4 w-4" />
-                Save Template
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+          {/* Save Button */}
+          <Button
+            className="w-full mt-6 bg-green-600 hover:bg-green-700"
+            onClick={handleSaveTemplate}
+            disabled={!template.body || template.buttons.some(b => !b.text)}
+          >
+            <Save className="mr-2 h-4 w-4" />
+            Save Template
+          </Button>
+        </div>
+      </div>
     </div>
   )
 }
-
-// Facebook-specific categories
-const categories = [
-  {
-    id: "marketing",
-    name: "Marketing",
-    description: "Templates for marketing campaigns and promotional content",
-  },
-  {
-    id: "utility",
-    name: "Utility",
-    description: "Templates for functional and service-related communications",
-  },
-  {
-    id: "authentication",
-    name: "Authentication",
-    description: "Templates for user verification and authentication",
-  },
-]
-
-// Facebook-specific subcategories
-const subcategories: Record<string, Array<{ id: string; name: string; description: string }>> = {
-  marketing: [
-    {
-      id: "custom",
-      name: "Custom",
-      description: "Create a fully customized marketing template",
-    },
-    {
-      id: "catalogue",
-      name: "Catalogue",
-      description: "Templates for showcasing products from your catalogue",
-    },
-    {
-      id: "flows",
-      name: "Flows",
-      description: "Interactive marketing templates with embedded flows",
-    },
-  ],
-  utility: [
-    {
-      id: "custom",
-      name: "Custom",
-      description: "Create a fully customized utility template",
-    },
-    {
-      id: "flows",
-      name: "Flows",
-      description: "Interactive utility templates with embedded flows",
-    },
-  ],
-  authentication: [
-    {
-      id: "one_time_passcode",
-      name: "One Time Passcode",
-      description: "Templates for sending one-time verification codes",
-    },
-  ],
-}
-

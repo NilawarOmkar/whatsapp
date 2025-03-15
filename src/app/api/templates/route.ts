@@ -28,7 +28,8 @@ export async function GET() {
 
 export async function POST(request: Request) {
     try {
-        const body: CreateTemplatePayload = await request.json();
+        const payload: CreateTemplatePayload = await request.json();
+        console.log("payload ",payload);
         const response = await fetch(
             `${BASE_URL}/${WABA_ID}/message_templates`,
             {
@@ -37,12 +38,14 @@ export async function POST(request: Request) {
                     'Content-Type': 'application/json',
                     Authorization: `Bearer ${ACCESS_TOKEN}`,
                 },
-                body: JSON.stringify(body),
+                body: JSON.stringify(payload),
             }
         );
         const data = await response.json();
+        console.log("data ",data);
         return NextResponse.json(data);
     } catch (error) {
+        console.log("error ",error);
         return NextResponse.json(
             { error: (error as Error).message },
             { status: 500 }

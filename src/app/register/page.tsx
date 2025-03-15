@@ -1,4 +1,3 @@
-// app/register/page.tsx
 "use client";
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
@@ -8,6 +7,7 @@ export default function RegisterPage() {
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     const [error, setError] = useState('');
+    const [loading, setLoading] = useState(false);
     const router = useRouter();
 
     useEffect(() => {
@@ -16,21 +16,42 @@ export default function RegisterPage() {
         }
     }, [router]);
 
-    const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
+        setError('');
+        setLoading(true);
+
         const formData = new FormData(e.currentTarget);
-        const username = formData.get('username');
-        const password = formData.get('password');
-        const confirmPassword = formData.get('confirmPassword');
+        const username = formData.get('username') as string;
+        const password = formData.get('password') as string;
+        const confirmPassword = formData.get('confirmPassword') as string;
 
         if (password !== confirmPassword) {
             setError('Passwords do not match');
+            setLoading(false);
             return;
         }
 
-        localStorage.setItem('user', JSON.stringify({ username, password }));
-        localStorage.setItem('isAuthenticated', 'true');
-        router.push('/message');
+        try {
+            const response = await fetch('/api/register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password }),
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || 'Registration failed');
+            }
+
+            alert('Registration successful!');
+            router.push('/');
+        } catch (err: any) {
+            setError(err.message);
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (
@@ -102,8 +123,9 @@ export default function RegisterPage() {
                     <button
                         type="submit"
                         className="w-full bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 transition-colors"
+                        disabled={loading}
                     >
-                        Register
+                        {loading ? 'Registering...' : 'Register'}
                     </button>
                 </form>
 

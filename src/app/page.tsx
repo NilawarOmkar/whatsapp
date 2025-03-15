@@ -15,29 +15,33 @@ export default function LoginPage() {
     }
   }, [router]);
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
-    const username = formData.get('username');
-    const password = formData.get('password');
-
-    // Get stored user data
-    const storedUser = localStorage.getItem('user');
-    if (!storedUser) {
-      setError('No user found. Please register first.');
-      return;
-    }
-
-    const user = JSON.parse(storedUser);
-    
-    if (username === user.username && password === user.password) {
-      localStorage.setItem('isAuthenticated', 'true');
-      router.push('/message');
-    } else {
-      setError('Invalid credentials. Please try again.');
+    const username = formData.get("username");
+    const password = formData.get("password");
+  
+    try {
+      const response = await fetch("http://localhost:3001/users/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password }),
+      });
+  
+      if (!response.ok) {
+        const data = await response.json();
+        setError(data.message || "Invalid credentials");
+        return;
+      }
+  
+      localStorage.setItem("isAuthenticated", "true");
+      router.push("/message");
+    } catch (error) {
+      console.error("Login failed:", error);
+      setError("Something went wrong. Please try again.");
     }
   };
-
+  
   return (
     <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
       <div className="bg-white p-8 rounded-xl shadow-lg w-full max-w-md space-y-6">
