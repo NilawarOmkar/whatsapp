@@ -9,12 +9,6 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const router = useRouter();
 
-  useEffect(() => {
-    if (localStorage.getItem('isAuthenticated')) {
-      router.push('/message');
-    }
-  }, [router]);
-
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
@@ -22,7 +16,7 @@ export default function LoginPage() {
     const password = formData.get("password");
   
     try {
-      const response = await fetch("http://localhost:3001/users/login", {
+      const response = await fetch("http://66.228.61.181:3000/users/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password }),
@@ -34,7 +28,7 @@ export default function LoginPage() {
         return;
       }
   
-      localStorage.setItem("isAuthenticated", "true");
+      document.cookie = "isAuthenticated=true; path=/; max-age=86400";
       router.push("/message");
     } catch (error) {
       console.error("Login failed:", error);

@@ -59,7 +59,6 @@ export default function TemplateCreator() {
     setTemplate(prev => ({ ...prev, buttons: updatedButtons }))
   }
 
-  // Generate final JSON
   const generateJSON = () => {
     const components = []
 
@@ -81,7 +80,7 @@ export default function TemplateCreator() {
 
       components.push(headerComponent)
     }
-  
+
 
     // Body component (required)
     const bodyComponent = {
@@ -189,7 +188,7 @@ export default function TemplateCreator() {
             <CardContent className="p-4 space-y-2">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Label className="text-sm font-medium">Header (Optional)</Label>
+                  <Label className="text-sm font-medium">Header</Label>
                   <Button variant="outline" size="sm" onClick={() => handleAddVariable('header')}>
                     <Plus className="h-4 w-4 mr-1" /> Add Variable
                   </Button>
@@ -290,7 +289,7 @@ export default function TemplateCreator() {
           <Card>
             <CardContent className="p-4 space-y-2">
               <div className="flex items-center justify-between">
-                <Label className="text-sm font-medium">Footer (Optional)</Label>
+                <Label className="text-sm font-medium">Footer</Label>
                 <span className="text-xs text-gray-500">{template.footer.length}/60</span>
               </div>
               <Input
@@ -359,37 +358,27 @@ export default function TemplateCreator() {
         <div className="sticky top-6">
           <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
             <MessageSquareText className="h-5 w-5" />
-            WhatsApp Preview
+            Template Preview
           </h3>
 
           <div className="bg-gray-50 p-4 rounded-lg shadow-sm">
             {template.header.text && (
               <div className="bg-green-600 text-white rounded-t-lg p-3 mb-2">
                 <p className="text-center font-medium">
-                  {template.header.text.split(/(\{\{\w+\}\})/).map((part, i) =>
-                    part.match(/\{\{(\w+)\}\}/) ? (
-                      <span key={i} className="bg-yellow-100 text-black px-1 mx-1 rounded">
-                        {part}
-                      </span>
-                    ) : (
-                      part
-                    )
-                  )}
+                  {template.header.text.match(/(\{\{\w+\}\}|[^{}]+)/g)?.map((part, i) => {
+                    const match = part.match(/\{\{(\w+)\}\}/);
+                    return match ? match[1] : part;
+                  })}
                 </p>
               </div>
             )}
 
             <div className="bg-white p-3 rounded-lg">
               <p className="text-gray-800 whitespace-pre-wrap">
-                {template.body.text.split(/(\{\{\w+\}\})/).map((part, i) =>
-                  part.match(/\{\{(\w+)\}\}/) ? (
-                    <span key={i} className="bg-blue-100 px-1 mx-1 rounded">
-                      {part}
-                    </span>
-                  ) : (
-                    part
-                  )
-                )}
+                {template.body.text.match(/(\{\{\w+\}\}|[^{}]+)/g)?.map((part, i) => {
+                  const match = part.match(/\{\{(\w+)\}\}/);
+                  return match ? match[1] : part;
+                })}
               </p>
             </div>
 

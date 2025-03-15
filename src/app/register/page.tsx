@@ -10,12 +10,6 @@ export default function RegisterPage() {
     const [loading, setLoading] = useState(false);
     const router = useRouter();
 
-    useEffect(() => {
-        if (localStorage.getItem('isAuthenticated')) {
-            router.push('/message');
-        }
-    }, [router]);
-
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         setError('');
@@ -33,7 +27,7 @@ export default function RegisterPage() {
         }
 
         try {
-            const response = await fetch('/api/register', {
+            const response = await fetch('http://66.228.61.181:3000/users/register', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ username, password }),

@@ -8,8 +8,7 @@ export async function POST(req: Request) {
             return NextResponse.json({ message: 'Username and password are required' }, { status: 400 });
         }
 
-        const backendUrl = 'http://localhost:3001/users/register'; // Node.js backend URL
-
+        const backendUrl = 'http://66.228.61.181:3000/register';
         const response = await fetch(backendUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
