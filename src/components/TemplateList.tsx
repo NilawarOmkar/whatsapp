@@ -8,12 +8,8 @@ import { Input } from './ui/input';
 import { Button } from './ui/button';
 import { Checkbox } from './ui/checkbox';
 import { Label } from './ui/label';
-
-interface TemplateListProps {
-    templates?: Template[];
-    onEdit: (template: Template) => void;
-    onDelete: (templateId: string) => void;
-}
+import axios from 'axios';
+import { useRouter } from 'next/navigation';
 
 interface User {
     id: number;
@@ -24,43 +20,54 @@ interface User {
     email: string;
 }
 
-export default function TemplateList({
-    templates = [],
-    onEdit,
-    onDelete
-}: TemplateListProps) {
-
+export default function TemplateList() {
+    const [templates, setTemplates] = useState<Template[]>([]);
     const [users, setUsers] = useState<User[]>([]);
-    const [sharingFlowId, setSharingFlowId] = useState<string | null>(null);
+    const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
     const [selectedNumbers, setSelectedNumbers] = useState<string[]>([]);
     const [newNumber, setNewNumber] = useState("");
+    const [loading, setLoading] = useState(true);
+    const router = useRouter();
 
     useEffect(() => {
-        async function fetchMessages() {
+        const fetchData = async () => {
             try {
-                const res = await fetch("/api/proxy");
-                if (!res.ok) throw new Error("Failed to fetch users");
-                const users: User[] = await res.json();
-                const processedUsers = users.map(user => ({
+                const [templatesRes, usersRes] = await Promise.all([
+                    axios.get('/api/templates'),
+                    fetch('/api/proxy')
+                ]);
+
+                if (!usersRes.ok) throw new Error("Failed to fetch users");
+
+                setTemplates(templatesRes.data?.data || []);
+                const usersData = await usersRes.json();
+                setUsers(usersData.map((user: User) => ({
                     ...user,
                     phone_number: String(user.phone_number)
-                }));
-                setUsers(processedUsers);
+                })));
             } catch (error) {
-                console.error("Error fetching messages:", error);
+                console.error("Error fetching data:", error);
+            } finally {
+                setLoading(false);
             }
-        }
+        };
 
-        fetchMessages();
+        fetchData();
     }, []);
 
-    useEffect(() => {
-        if (!sharingFlowId) {
-            setSelectedNumbers([]);
+    const deleteTemplate = async (templateId: string) => {
+        if (confirm('Are you sure you want to delete this template?')) {
+            try {
+                await axios.delete(`/api/templates?id=${templateId}`);
+                setTemplates(prev => prev.filter(t => t.name !== templateId));
+            } catch (error) {
+                console.error('Error deleting template:', error);
+                alert('Failed to delete template');
+            }
         }
-    }, [sharingFlowId]);
+    };
 
-    const shareFlow = async (id: string, numbers: string[]) => {
+    const shareTemplate = async (template: Template, numbers: string[]) => {
         if (numbers.length === 0) {
             alert("Please select at least one user");
             return;
@@ -69,26 +76,46 @@ export default function TemplateList({
         try {
             await Promise.all(
                 numbers.map(async (number) => {
-                    const response = await fetch("/api/share-template", {
+                    const validatedNumber = number.replace(/[^\d]/g, "");
+                    if (!validatedNumber.match(/^\d{10,15}$/)) {
+                        throw new Error(`Invalid number format: ${number}`);
+                    }
+
+                    const response = await fetch("/api/send-template", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ id, number }),
+                        body: JSON.stringify({
+                            name: template.name,
+                            category: template.category || "MARKETING",
+                            language: template.language || "en_US",
+                            number: validatedNumber,
+                            components: template.components || []
+                        }),
                     });
-                    if (!response.ok) throw new Error(`Failed to share with ${number}`);
+
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(`Failed to share with ${number}: ${errorData.error?.message}`);
+                    }
                 })
             );
             alert("Template shared successfully with selected users!");
         } catch (error) {
-            console.error("Error sharing flow:", error);
-            alert("Failed to share with some users");
+            console.error("Error sharing template:", error);
+            alert(error instanceof Error ? error.message : "Failed to share template");
         } finally {
-            setSharingFlowId(null);
+            setSelectedTemplate(null);
         }
     };
 
     const addNewNumber = () => {
-        const trimmedNumber = newNumber.trim();
-        if (trimmedNumber && !users.some(user => user.phone_number === trimmedNumber)) {
+        const trimmedNumber = newNumber.trim().replace(/[^\d]/g, "");
+        if (!trimmedNumber.match(/^\d{10,15}$/)) {
+            alert("Invalid phone number format");
+            return;
+        }
+
+        if (!users.some(user => user.phone_number === trimmedNumber)) {
             setUsers(prev => [...prev, {
                 id: Date.now(),
                 first_name: "",
@@ -101,6 +128,15 @@ export default function TemplateList({
             setNewNumber("");
         }
     };
+
+    if (loading) {
+        return (
+            <div className="text-center p-8">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto" />
+                <p className="mt-4 text-gray-600">Loading templates...</p>
+            </div>
+        );
+    }
 
     return (
         <div className="border rounded-lg bg-white">
@@ -131,18 +167,21 @@ export default function TemplateList({
                             <div className="col-span-2">{template.language || <span className="text-gray-400">N/A</span>}</div>
                             <div className="col-span-3 flex gap-2">
                                 <button
-                                    onClick={() => onEdit(template)}
+                                    onClick={() => router.push(`/edit-template/${template.name}`)}
                                     className="p-2 hover:bg-gray-100 rounded"
                                 >
                                     <PencilIcon className="h-5 w-5 text-blue-500" />
                                 </button>
                                 <button
-                                    onClick={() => onDelete(template.name)}
+                                    onClick={() => deleteTemplate(template.name)}
                                     className="p-2 hover:bg-gray-100 rounded"
                                 >
                                     <TrashIcon className="h-5 w-5 text-red-500" />
                                 </button>
-                                <button onClick={() => setSharingFlowId(template.name)} className="p-2 hover:bg-gray-100 rounded">
+                                <button
+                                    onClick={() => setSelectedTemplate(template)}
+                                    className="p-2 hover:bg-gray-100 rounded"
+                                >
                                     <Share2 className="h-5 w-5 text-green-500" />
                                 </button>
                             </div>
@@ -151,12 +190,10 @@ export default function TemplateList({
                 ))
             )}
 
-            <Dialog open={!!sharingFlowId} onOpenChange={() => setSharingFlowId(null)}>
+            <Dialog open={!!selectedTemplate} onOpenChange={() => setSelectedTemplate(null)}>
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle className="flex items-center justify-between">
-                            <span>Select Users to Share With</span>
-                        </DialogTitle>
+                        <DialogTitle>Select Users to Share With</DialogTitle>
                     </DialogHeader>
 
                     <div className="grid gap-4 py-4">
@@ -173,34 +210,30 @@ export default function TemplateList({
                             </Button>
                         </div>
 
-                        {users.length === 0 ? (
-                            <div>No users found</div>
-                        ) : (
-                            users.map((user) => (
-                                <div key={user.phone_number} className="flex items-center gap-2">
-                                    <Checkbox
-                                        id={user.phone_number}
-                                        checked={selectedNumbers.includes(user.phone_number)}
-                                        onCheckedChange={(checked) => {
-                                            if (checked) {
-                                                setSelectedNumbers([...selectedNumbers, user.phone_number]);
-                                            } else {
-                                                setSelectedNumbers(selectedNumbers.filter(n => n !== user.phone_number));
-                                            }
-                                        }}
-                                    />
-                                    <Label htmlFor={user.phone_number}>
-                                        {user.first_name || user.last_name
-                                            ? `${user.first_name} ${user.last_name}`.trim()
-                                            : user.phone_number}
-                                    </Label>
-                                </div>
-                            ))
-                        )}
+                        {users.map((user) => (
+                            <div key={user.phone_number} className="flex items-center gap-2">
+                                <Checkbox
+                                    id={user.phone_number}
+                                    checked={selectedNumbers.includes(user.phone_number)}
+                                    onCheckedChange={(checked) => {
+                                        if (checked) {
+                                            setSelectedNumbers([...selectedNumbers, user.phone_number]);
+                                        } else {
+                                            setSelectedNumbers(selectedNumbers.filter(n => n !== user.phone_number));
+                                        }
+                                    }}
+                                />
+                                <Label htmlFor={user.phone_number}>
+                                    {user.first_name || user.last_name
+                                        ? `${user.first_name} ${user.last_name}`.trim()
+                                        : user.phone_number}
+                                </Label>
+                            </div>
+                        ))}
                     </div>
                     <DialogFooter>
                         <Button
-                            onClick={() => sharingFlowId && shareFlow(sharingFlowId, selectedNumbers)}
+                            onClick={() => selectedTemplate && shareTemplate(selectedTemplate, selectedNumbers)}
                             disabled={selectedNumbers.length === 0}
                         >
                             Share with Selected ({selectedNumbers.length})
