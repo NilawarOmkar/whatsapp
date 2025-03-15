@@ -27,7 +27,7 @@ export default function RegisterPage() {
         }
 
         try {
-            const response = await fetch('http://66.228.61.181:3000/users/register', {
+            const response = await fetch('/api/register', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ username, password }),
@@ -66,7 +66,6 @@ export default function RegisterPage() {
                             <input
                                 name="username"
                                 className="w-full pl-10 pr-4 py-2 rounded-lg border focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                                placeholder="OmkarNilawar"
                                 required
                             />
                         </div>
