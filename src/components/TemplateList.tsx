@@ -49,7 +49,7 @@ export default function TemplateList({
                                     <PencilIcon className="h-5 w-5 text-blue-500" />
                                 </button>
                                 <button
-                                    onClick={() => onDelete(template.id)}
+                                    onClick={() => onDelete(template.name)}
                                     className="p-2 hover:bg-gray-100 rounded"
                                 >
                                     <TrashIcon className="h-5 w-5 text-red-500" />

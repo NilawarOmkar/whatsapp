@@ -28,7 +28,9 @@ export default function TemplateManager() {
     const deleteTemplate = async (templateId: string) => {
         if (confirm('Are you sure you want to delete this template?')) {
             try {
-                await axios.delete(`/api/templates/${templateId}`);
+                await axios.delete('/api/templates', {
+                    data: { templateId }, // Send templateId in the request body
+                });
                 fetchTemplates();
             } catch (error) {
                 console.error('Error deleting template:', error);
@@ -36,7 +38,7 @@ export default function TemplateManager() {
         }
     };
 
-    // ✅ Correct usage of useRouter
+
     const createTemplate = () => {
         router.push('/create-template');
     };

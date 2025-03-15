@@ -29,7 +29,7 @@ export async function GET() {
 export async function POST(request: Request) {
     try {
         const payload: CreateTemplatePayload = await request.json();
-        console.log("payload ",payload);
+        console.log("payload ", payload);
         const response = await fetch(
             `${BASE_URL}/${WABA_ID}/message_templates`,
             {
@@ -42,10 +42,38 @@ export async function POST(request: Request) {
             }
         );
         const data = await response.json();
-        console.log("data ",data);
+        console.log("data ", data);
         return NextResponse.json(data);
     } catch (error) {
-        console.log("error ",error);
+        console.log("error ", error);
+        return NextResponse.json(
+            { error: (error as Error).message },
+            { status: 500 }
+        );
+    }
+}
+
+export async function DELETE(request: Request) {
+    try {
+        const { templateId } = await request.json();
+        if (!templateId) {
+            return NextResponse.json({ error: 'Template ID is required' }, { status: 400 });
+        }
+
+        const response = await fetch(
+            `${BASE_URL}/${WABA_ID}/message_templates?name=${templateId}`,
+            {
+                method: 'DELETE',
+                headers: {
+                    Authorization: `Bearer ${ACCESS_TOKEN}`,
+                },
+            }
+        );
+        const data = await response.json();
+        console.log("data ", data);
+        return NextResponse.json(data);
+    } catch (error) {
+        console.log("error ", error);
         return NextResponse.json(
             { error: (error as Error).message },
             { status: 500 }
