@@ -116,17 +116,18 @@ export default function TemplateCreator() {
   const updateButton = (index: number, field: keyof Button, value: string) => {
     const updatedButtons = template.buttons.map((btn, i) => {
       if (i === index) {
-        // Reset unrelated fields when changing type
-        const updatedBtn: Button = {
-          ...btn,
-          [field]: value,
-          url: undefined,
-          phone_number: undefined,
-          flow_id: undefined,
-          example: undefined
-        };
-
         if (field === 'type') {
+          // Reset unrelated fields when changing type
+          const updatedBtn: Button = {
+            ...btn,
+            type: value as ButtonType,
+            text: btn.text,
+            url: undefined,
+            phone_number: undefined,
+            flow_id: undefined,
+            example: undefined
+          };
+
           // Type-specific initializations
           switch (value) {
             case 'URL':
@@ -142,8 +143,14 @@ export default function TemplateCreator() {
               updatedBtn.example = '';
               break;
           }
+          return updatedBtn;
+        } else {
+          // For other fields, just update the specific field
+          return {
+            ...btn,
+            [field]: value
+          };
         }
-        return updatedBtn;
       }
       return btn;
     });
@@ -490,8 +497,8 @@ export default function TemplateCreator() {
                     <div className="space-y-1">
                       <Label>Select Flow</Label>
                       <Select
-                        value={button.url || ''}
-                        onValueChange={value => updateButton(index, 'url', value)}
+                        value={button.flow_id || ''}
+                        onValueChange={value => updateButton(index, 'flow_id', value)}
                       >
                         <SelectTrigger>
                           <SelectValue placeholder="Select a flow" />
@@ -558,7 +565,7 @@ export default function TemplateCreator() {
               <div className="mt-4 space-y-2">
                 {template.buttons.map((button, index) => {
                   const flowName = button.type === 'FLOW'
-                    ? flows.find(f => f.id === button.url)?.name
+                    ? flows.find(f => f.id === button.flow_id)?.name
                     : null
 
                   return (
