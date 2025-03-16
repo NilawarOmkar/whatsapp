@@ -24,7 +24,6 @@ type ButtonType =
 type Button = {
   type: ButtonType;
   text: string;
-  // Type-specific fields
   url?: string;
   phone_number?: string;
   flow_id?: string;
@@ -145,7 +144,6 @@ export default function TemplateCreator() {
           }
           return updatedBtn;
         } else {
-          // For other fields, just update the specific field
           return {
             ...btn,
             [field]: value
