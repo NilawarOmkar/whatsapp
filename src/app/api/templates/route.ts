@@ -55,7 +55,9 @@ export async function POST(request: Request) {
 
 export async function DELETE(request: Request) {
     try {
-        const { templateId } = await request.json();
+        const { searchParams } = new URL(request.url);
+        const templateId = searchParams.get('id');
+        
         if (!templateId) {
             return NextResponse.json({ error: 'Template ID is required' }, { status: 400 });
         }
@@ -66,16 +68,21 @@ export async function DELETE(request: Request) {
                 method: 'DELETE',
                 headers: {
                     Authorization: `Bearer ${ACCESS_TOKEN}`,
+                    'Content-Type': 'application/json',
                 },
             }
         );
-        const data = await response.json();
-        console.log("data ", data);
-        return NextResponse.json(data);
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            return NextResponse.json({ error: errorData }, { status: response.status });
+        }
+
+        return NextResponse.json({ message: 'Template deleted successfully' }, { status: 200 });
     } catch (error) {
-        console.log("error ", error);
+        console.error('Error deleting template:', error);
         return NextResponse.json(
-            { error: (error as Error).message },
+            { error: 'Failed to delete template' },
             { status: 500 }
         );
     }
