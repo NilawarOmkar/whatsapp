@@ -563,26 +563,17 @@ export default function TemplateCreator() {
 
             {template.buttons.length > 0 && (
               <div className="mt-4 space-y-2">
-                {template.buttons.map((button, index) => {
-                  const flowName = button.type === 'FLOW'
-                    ? flows.find(f => f.id === button.flow_id)?.name
-                    : null
-
-                  return (
-                    <div
-                      key={index}
-                      className={`p-2 rounded text-center ${button.type === 'QUICK_REPLY'
-                        ? 'bg-gray-100 hover:bg-gray-200'
-                        : 'bg-blue-100 hover:bg-blue-200 text-blue-800'
-                        }`}
-                    >
-                      {button.text || "Button text"}
-                      {button.type === 'FLOW' && flowName && (
-                        <div className="text-xs text-gray-500 mt-1">{flowName}</div>
-                      )}
-                    </div>
-                  )
-                })}
+                {template.buttons.map((button, index) => (
+                  <div
+                    key={index}
+                    className={`p-2 rounded text-center ${button.type === 'QUICK_REPLY'
+                      ? 'bg-gray-100 hover:bg-gray-200'
+                      : 'bg-blue-100 hover:bg-blue-200 text-blue-800'
+                      }`}
+                  >
+                    {button.text || "Button text"}
+                  </div>
+                ))}
               </div>
             )}
           </div>
