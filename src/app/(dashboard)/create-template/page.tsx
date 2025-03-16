@@ -1,5 +1,5 @@
 'use client'
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -8,16 +8,69 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent } from "@/components/ui/card"
 import { Save, MessageSquareText, Plus, X } from "lucide-react"
 
+type Flow = {
+  id: string
+  name: string
+}
+
+type ButtonType =
+  | 'QUICK_REPLY'
+  | 'URL'
+  | 'PHONE_NUMBER'
+  | 'COPY_CODE'
+  | 'FLOW'
+  | 'FLOW';
+
+type Button = {
+  type: ButtonType;
+  text: string;
+  // Type-specific fields
+  url?: string;
+  phone_number?: string;
+  flow_id?: string;
+  example?: string;
+};
+
+type TemplateState = {
+  category: string;
+  name: string;
+  language: string;
+  header: { text: string; variables: string[] };
+  body: { text: string; variables: string[] };
+  footer: string;
+  buttons: Button[];
+};
+
 export default function TemplateCreator() {
-  const [template, setTemplate] = useState({
+  const [flows, setFlows] = useState<any[]>([])
+  const [template, setTemplate] = useState<TemplateState>({
     category: 'MARKETING',
     name: '',
     language: 'en_US',
     header: { text: '', variables: [] as string[] },
     body: { text: '', variables: [] as string[] },
     footer: '',
-    buttons: [] as Array<{ type: string; text: string; url?: string }>
+    buttons: []
   })
+
+  // Fetch flows on component mount
+  useEffect(() => {
+    const fetchFlows = async () => {
+      try {
+        const response = await fetch('/api/flows')
+        if (!response.ok) {
+          throw new Error('Failed to fetch flows')
+        }
+        const result = await response.json()
+        console.log('Flows:', result)
+        setFlows(result?.data || [])
+      } catch (error) {
+        console.error('Error fetching flows:', error)
+        setFlows([])
+      }
+    }
+    fetchFlows()
+  }, [])
 
   // Add/remove variables
   const handleAddVariable = (section: 'header' | 'body') => {
@@ -48,19 +101,58 @@ export default function TemplateCreator() {
   const addButton = () => {
     setTemplate(prev => ({
       ...prev,
-      buttons: [...prev.buttons, { type: 'QUICK_REPLY', text: '' }]
-    }))
-  }
+      buttons: [...prev.buttons, {
+        type: 'QUICK_REPLY',
+        text: '',
+        url: undefined,
+        phone_number: undefined,
+        flow_id: undefined,
+        example: undefined
+      }]
+    }));
+  };
 
-  const updateButton = (index: number, field: string, value: string) => {
-    const updatedButtons = template.buttons.map((btn, i) =>
-      i === index ? { ...btn, [field]: value } : btn
-    )
-    setTemplate(prev => ({ ...prev, buttons: updatedButtons }))
-  }
+
+  const updateButton = (index: number, field: keyof Button, value: string) => {
+    const updatedButtons = template.buttons.map((btn, i) => {
+      if (i === index) {
+        // Reset unrelated fields when changing type
+        const updatedBtn: Button = {
+          ...btn,
+          [field]: value,
+          url: undefined,
+          phone_number: undefined,
+          flow_id: undefined,
+          example: undefined
+        };
+
+        if (field === 'type') {
+          // Type-specific initializations
+          switch (value) {
+            case 'URL':
+              updatedBtn.url = '';
+              break;
+            case 'PHONE_NUMBER':
+              updatedBtn.phone_number = '';
+              break;
+            case 'FLOW':
+              updatedBtn.flow_id = '';
+              break;
+            case 'COPY_CODE':
+              updatedBtn.example = '';
+              break;
+          }
+        }
+        return updatedBtn;
+      }
+      return btn;
+    });
+
+    setTemplate(prev => ({ ...prev, buttons: updatedButtons }));
+  };
 
   const generateJSON = () => {
-    const components = []
+    const components = [];
 
     // Header component
     if (template.header.text) {
@@ -68,19 +160,15 @@ export default function TemplateCreator() {
         type: 'HEADER',
         format: 'TEXT',
         text: template.header.text
-      }
+      };
 
       if (template.header.variables.length > 0) {
         headerComponent.example = {
-          header_text: [
-            template.header.variables.map((_, i) => `Sample ${i + 1}`)
-          ]
-        }
+          header_text: [template.header.variables]
+        };
       }
-
-      components.push(headerComponent)
+      components.push(headerComponent);
     }
-
 
     // Body component (required)
     const bodyComponent = {
@@ -88,39 +176,83 @@ export default function TemplateCreator() {
       text: template.body.text,
       ...(template.body.variables.length > 0 && {
         example: {
-          body_text: [template.body.variables.map((_, i) => `example${i + 1}`)]
+          body_text: [template.body.variables]
         }
       })
-    }
-    components.push(bodyComponent)
+    };
+    components.push(bodyComponent);
 
     // Footer component
     if (template.footer) {
       components.push({
         type: 'FOOTER',
         text: template.footer
-      })
+      });
     }
 
-    // Buttons component
+    // Process buttons
     if (template.buttons.length > 0) {
-      components.push({
-        type: 'BUTTONS',
-        buttons: template.buttons.map(btn => ({
-          type: btn.type,
-          text: btn.text,
-          ...(btn.type === 'URL' && { url: btn.url })
-        }))
-      })
-    }
+      if (template.buttons.length > 0) {
+        const buttonComponent = {
+          type: 'BUTTONS',
+          buttons: template.buttons.map(btn => {
+            const base = { type: btn.type, text: btn.text };
 
-    return {
-      name: template.name,
-      language: template.language,
-      category: template.category,
-      allow_category_change: true,
-      components
-    }
+            switch (btn.type) {
+              case 'URL':
+                return {
+                  ...base,
+                  url: btn.url,
+                  ...(btn.url?.includes('{{') && { example: [btn.url.replace(/{{.*}}/, 'example')] })
+                };
+
+              case 'PHONE_NUMBER':
+                return {
+                  ...base,
+                  phone_number: btn.phone_number
+                };
+
+              case 'FLOW':
+                return {
+                  ...base,
+                  flow_id: btn.flow_id,
+                  flow_action: 'navigate'
+                };
+
+              case 'COPY_CODE':
+                return {
+                  type: 'COPY_CODE',
+                  example: btn.example
+                };
+
+              default:
+                return base;
+            }
+          })
+        };
+
+        // Add validation for button limits
+        const buttonCounts = template.buttons.reduce((acc: Record<string, number>, btn) => {
+          acc[btn.type] = (acc[btn.type] || 0) + 1;
+          return acc;
+        }, {});
+
+        if (buttonCounts['COPY_CODE'] > 1) throw new Error('Max 1 COPY_CODE button allowed');
+        if (buttonCounts['FLOW'] > 1) throw new Error('Max 1 FLOW button allowed');
+        if (buttonCounts['PHONE_NUMBER'] > 1) throw new Error('Max 1 PHONE_NUMBER button allowed');
+        if (buttonCounts['URL'] > 2) throw new Error('Max 2 URL buttons allowed');
+
+        components.push(buttonComponent);
+      }
+
+      return {
+        name: template.name,
+        language: template.language,
+        category: template.category,
+        allow_category_change: true,
+        components
+      };
+    };
   }
 
   const handleSaveTemplate = async () => {
@@ -316,12 +448,19 @@ export default function TemplateCreator() {
                   <div className="grid grid-cols-2 gap-2">
                     <div className="space-y-1">
                       <Label>Button Type</Label>
-                      <Select value={button.type} onValueChange={v => updateButton(index, 'type', v)}>
+                      <Select
+                        value={button.type}
+                        onValueChange={v => updateButton(index, 'type', v)}
+                        disabled={template.category === 'AUTHENTICATION' && button.type === 'FLOW'}
+                      >
                         <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="QUICK_REPLY">Quick Reply</SelectItem>
                           <SelectItem value="URL">URL</SelectItem>
                           <SelectItem value="PHONE_NUMBER">Phone Number</SelectItem>
+                          {(template.category === 'MARKETING' || template.category === 'UTILITY') && (
+                            <SelectItem value="FLOW">Flow</SelectItem>
+                          )}
                         </SelectContent>
                       </Select>
                     </div>
@@ -344,6 +483,33 @@ export default function TemplateCreator() {
                         onChange={e => updateButton(index, 'url', e.target.value)}
                         placeholder="https://example.com"
                       />
+                    </div>
+                  )}
+
+                  {button.type === 'FLOW' && (
+                    <div className="space-y-1">
+                      <Label>Select Flow</Label>
+                      <Select
+                        value={button.url || ''}
+                        onValueChange={value => updateButton(index, 'url', value)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a flow" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {flows.length > 0 ? (
+                            flows.map(flow => (
+                              <SelectItem key={flow.id} value={flow.id}>
+                                {flow.name}
+                              </SelectItem>
+                            ))
+                          ) : (
+                            <SelectItem value="unavailable" disabled>
+                              No flows available
+                            </SelectItem>
+                          )}
+                        </SelectContent>
+                      </Select>
                     </div>
                   )}
                 </div>
@@ -390,17 +556,26 @@ export default function TemplateCreator() {
 
             {template.buttons.length > 0 && (
               <div className="mt-4 space-y-2">
-                {template.buttons.map((button, index) => (
-                  <div
-                    key={index}
-                    className={`p-2 rounded text-center ${button.type === 'QUICK_REPLY'
-                      ? 'bg-gray-100 hover:bg-gray-200'
-                      : 'bg-blue-100 hover:bg-blue-200 text-blue-800'
-                      }`}
-                  >
-                    {button.text || "Button text"}
-                  </div>
-                ))}
+                {template.buttons.map((button, index) => {
+                  const flowName = button.type === 'FLOW'
+                    ? flows.find(f => f.id === button.url)?.name
+                    : null
+
+                  return (
+                    <div
+                      key={index}
+                      className={`p-2 rounded text-center ${button.type === 'QUICK_REPLY'
+                        ? 'bg-gray-100 hover:bg-gray-200'
+                        : 'bg-blue-100 hover:bg-blue-200 text-blue-800'
+                        }`}
+                    >
+                      {button.text || "Button text"}
+                      {button.type === 'FLOW' && flowName && (
+                        <div className="text-xs text-gray-500 mt-1">{flowName}</div>
+                      )}
+                    </div>
+                  )
+                })}
               </div>
             )}
           </div>
