@@ -18,7 +18,6 @@ type ButtonType =
   | 'URL'
   | 'PHONE_NUMBER'
   | 'COPY_CODE'
-  | 'FLOW'
   | 'FLOW';
 
 type Button = {
@@ -61,7 +60,6 @@ export default function TemplateCreator() {
           throw new Error('Failed to fetch flows')
         }
         const result = await response.json()
-        console.log('Flows:', result)
         setFlows(result?.data || [])
       } catch (error) {
         console.error('Error fetching flows:', error)
@@ -111,12 +109,10 @@ export default function TemplateCreator() {
     }));
   };
 
-
   const updateButton = (index: number, field: keyof Button, value: string) => {
     const updatedButtons = template.buttons.map((btn, i) => {
       if (i === index) {
         if (field === 'type') {
-          // Reset unrelated fields when changing type
           const updatedBtn: Button = {
             ...btn,
             type: value as ButtonType,
@@ -127,7 +123,6 @@ export default function TemplateCreator() {
             example: undefined
           };
 
-          // Type-specific initializations
           switch (value) {
             case 'URL':
               updatedBtn.url = '';
@@ -197,89 +192,102 @@ export default function TemplateCreator() {
 
     // Process buttons
     if (template.buttons.length > 0) {
-      if (template.buttons.length > 0) {
-        const buttonComponent = {
-          type: 'BUTTONS',
-          buttons: template.buttons.map(btn => {
-            const base = { type: btn.type, text: btn.text };
+      const buttonComponent = {
+        type: 'BUTTONS',
+        buttons: template.buttons.map(btn => {
+          const base = { type: btn.type, text: btn.text };
 
-            switch (btn.type) {
-              case 'URL':
-                return {
-                  ...base,
-                  url: btn.url,
-                  ...(btn.url?.includes('{{') && { example: [btn.url.replace(/{{.*}}/, 'example')] })
-                };
+          switch (btn.type) {
+            case 'URL':
+              return {
+                ...base,
+                url: btn.url,
+                ...(btn.url?.includes('{{') && { example: [btn.url.replace(/{{.*}}/, 'example')] })
+              };
 
-              case 'PHONE_NUMBER':
-                return {
-                  ...base,
-                  phone_number: btn.phone_number
-                };
+            case 'PHONE_NUMBER':
+              return {
+                ...base,
+                phone_number: btn.phone_number,
+                ...(btn.phone_number?.includes('{{') && {
+                  example: [btn.phone_number.replace(/{{.*}}/, '+1234567890')]
+                })
+              };
 
-              case 'FLOW':
-                return {
-                  ...base,
-                  flow_id: btn.flow_id,
-                  flow_action: 'navigate'
-                };
+            case 'FLOW':
+              return {
+                ...base,
+                flow_id: btn.flow_id,
+                flow_action: 'navigate'
+              };
 
-              case 'COPY_CODE':
-                return {
-                  type: 'COPY_CODE',
-                  example: btn.example
-                };
+            case 'COPY_CODE':
+              return {
+                type: 'COPY_CODE',
+                example: btn.example
+              };
 
-              default:
-                return base;
-            }
-          })
-        };
-
-        // Add validation for button limits
-        const buttonCounts = template.buttons.reduce((acc: Record<string, number>, btn) => {
-          acc[btn.type] = (acc[btn.type] || 0) + 1;
-          return acc;
-        }, {});
-
-        if (buttonCounts['COPY_CODE'] > 1) throw new Error('Max 1 COPY_CODE button allowed');
-        if (buttonCounts['FLOW'] > 1) throw new Error('Max 1 FLOW button allowed');
-        if (buttonCounts['PHONE_NUMBER'] > 1) throw new Error('Max 1 PHONE_NUMBER button allowed');
-        if (buttonCounts['URL'] > 2) throw new Error('Max 2 URL buttons allowed');
-
-        components.push(buttonComponent);
-      }
-
-      return {
-        name: template.name,
-        language: template.language,
-        category: template.category,
-        allow_category_change: true,
-        components
+            default:
+              return base;
+          }
+        })
       };
+
+      // Validation for button limits
+      const buttonCounts = template.buttons.reduce((acc: Record<string, number>, btn) => {
+        acc[btn.type] = (acc[btn.type] || 0) + 1;
+        return acc;
+      }, {});
+
+      if (buttonCounts['COPY_CODE'] > 1) throw new Error('Max 1 COPY_CODE button allowed');
+      if (buttonCounts['FLOW'] > 1) throw new Error('Max 1 FLOW button allowed');
+      if (buttonCounts['PHONE_NUMBER'] > 1) throw new Error('Max 1 PHONE_NUMBER button allowed');
+      if (buttonCounts['URL'] > 2) throw new Error('Max 2 URL buttons allowed');
+
+      components.push(buttonComponent);
+    }
+
+    return {
+      name: template.name,
+      language: template.language,
+      category: template.category,
+      allow_category_change: true,
+      components
     };
   }
 
   const handleSaveTemplate = async () => {
-    const jsonData = generateJSON()
-    console.log('Sending template:', JSON.stringify(jsonData, null, 2))
-
     try {
+      // Validate phone number buttons
+      const phoneNumberButtons = template.buttons.filter(btn => btn.type === 'PHONE_NUMBER');
+      if (phoneNumberButtons.length > 0) {
+        const invalidPhone = phoneNumberButtons.some(btn =>
+          !btn.phone_number || !/^\+?[1-9]\d{1,14}$/.test(btn.phone_number)
+        );
+
+        if (invalidPhone) {
+          throw new Error('Phone number buttons must use E.164 format (+1234567890)');
+        }
+      }
+
+      const jsonData = generateJSON();
+      console.log('Sending template:', JSON.stringify(jsonData, null, 2));
+
       const response = await fetch('/api/templates', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(jsonData)
-      })
+      });
 
       if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error?.message || 'Failed to save template')
+        const errorData = await response.json();
+        throw new Error(errorData.error?.message || 'Failed to save template');
       }
 
-      alert('Template saved successfully!')
+      alert('Template saved successfully!');
     } catch (error) {
-      console.error('Error:', error)
-      alert(`Error saving template: ${(error as Error).message}`)
+      console.error('Error:', error);
+      alert(`Error saving template: ${(error as Error).message}`);
     }
   }
 
@@ -487,6 +495,17 @@ export default function TemplateCreator() {
                         value={button.url || ''}
                         onChange={e => updateButton(index, 'url', e.target.value)}
                         placeholder="https://example.com"
+                      />
+                    </div>
+                  )}
+
+                  {button.type === 'PHONE_NUMBER' && (
+                    <div className="space-y-1">
+                      <Label>Phone Number (E.164 format)</Label>
+                      <Input
+                        value={button.phone_number || ''}
+                        onChange={e => updateButton(index, 'phone_number', e.target.value)}
+                        placeholder="+1234567890"
                       />
                     </div>
                   )}

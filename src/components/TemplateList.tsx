@@ -81,20 +81,128 @@ export default function TemplateList() {
                         throw new Error(`Invalid number format: ${number}`);
                     }
 
+                    // Format components properly for WhatsApp API
+                    const formattedComponents = [];
+                    
+                    // Add header if it exists
+                    if (template.components?.header) {
+                        const headerType = template.components.header.type.toLowerCase();
+                        formattedComponents.push({
+                            type: "header",
+                            parameters: [{
+                                type: headerType,
+                                ...(headerType === 'text' 
+                                    ? { text: template.components.header.text }
+                                    : { 
+                                        [headerType]: {
+                                            link: template.components.header.text
+                                        }
+                                    }
+                                )
+                            }]
+                        });
+                    }
+
+                    // Add body (required)
+                    if (template.components?.body) {
+                        const bodyParameters: Array<{ type: string; text: string }> = [];
+                        
+                        // If there are variables in the body
+                        if (template.components.body.example?.body_text?.[0]) {
+                            // Use the example values provided in the template
+                            template.components.body.example.body_text[0].forEach(text => {
+                                bodyParameters.push({
+                                    type: "text",
+                                    text: text
+                                });
+                            });
+                        } else {
+                            // No variables, just use the body text
+                            bodyParameters.push({
+                                type: "text",
+                                text: template.components.body.text
+                            });
+                        }
+
+                        formattedComponents.push({
+                            type: "body",
+                            parameters: bodyParameters
+                        });
+                    }
+
+                    // Add footer if it exists
+                    if (template.components?.footer) {
+                        formattedComponents.push({
+                            type: "footer",
+                            text: template.components.footer.text
+                        });
+                    }
+
+                    // Add buttons if they exist
+                    if (template.components?.buttons?.length) {
+                        template.components.buttons.forEach((button, index) => {
+                            const buttonComponent: {
+                                type: string;
+                                sub_type: string;
+                                index: string;
+                                parameters: Array<{
+                                    type: string;
+                                    text?: string;
+                                    payload?: string;
+                                }>;
+                            } = {
+                                type: "button",
+                                sub_type: button.type.toLowerCase() === 'quick_reply' ? 'quick_reply' : button.type.toLowerCase(),
+                                index: index.toString(),
+                                parameters: []
+                            };
+
+                            if (button.type.toLowerCase() === 'quick_reply') {
+                                buttonComponent.parameters = [{
+                                    type: "payload",
+                                    payload: button.text
+                                }];
+                            } else if (button.type.toLowerCase() === 'url') {
+                                buttonComponent.parameters = [{
+                                    type: "text",
+                                    text: button.text
+                                }];
+                            } else if (button.type.toLowerCase() === 'phone_number') {
+                                buttonComponent.parameters = [{
+                                    type: "text",
+                                    text: button.text
+                                }];
+                            }
+
+                            formattedComponents.push(buttonComponent);
+                        });
+                    }
+
+                    const payload = {
+                        messaging_product: "whatsapp",
+                        recipient_type: "individual",
+                        to: validatedNumber,
+                        type: "template",
+                        template: {
+                            name: template.name,
+                            language: {
+                                code: template.language || "en_US"
+                            },
+                            components: formattedComponents
+                        }
+                    };
+                    
+                    console.log('Final API payload:', JSON.stringify(payload, null, 2));
+
                     const response = await fetch("/api/send-template", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                            name: template.name,
-                            category: template.category || "MARKETING",
-                            language: template.language || "en_US",
-                            number: validatedNumber,
-                            components: template.components || []
-                        }),
+                        body: JSON.stringify(payload),
                     });
 
                     if (!response.ok) {
                         const errorData = await response.json();
+                        console.error('API Error Response:', JSON.stringify(errorData, null, 2));
                         throw new Error(`Failed to share with ${number}: ${errorData.error?.message}`);
                     }
                 })
