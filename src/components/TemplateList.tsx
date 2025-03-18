@@ -69,152 +69,159 @@ export default function TemplateList() {
 
     const shareTemplate = async (template: Template, numbers: string[]) => {
         if (numbers.length === 0) {
-            alert("Please select at least one user");
-            return;
+          alert("Please select at least one user");
+          return;
         }
-
+      
         try {
-            await Promise.all(
-                numbers.map(async (number) => {
-                    const validatedNumber = number.replace(/[^\d]/g, "");
-                    if (!validatedNumber.match(/^\d{10,15}$/)) {
-                        throw new Error(`Invalid number format: ${number}`);
-                    }
-
-                    // Format components properly for WhatsApp API
-                    const formattedComponents = [];
-                    
-                    // Add header if it exists
-                    if (template.components?.header) {
-                        const headerType = template.components.header.type.toLowerCase();
-                        formattedComponents.push({
-                            type: "header",
-                            parameters: [{
-                                type: headerType,
-                                ...(headerType === 'text' 
-                                    ? { text: template.components.header.text }
-                                    : { 
-                                        [headerType]: {
-                                            link: template.components.header.text
-                                        }
-                                    }
-                                )
-                            }]
-                        });
-                    }
-
-                    // Add body (required)
-                    if (template.components?.body) {
-                        const bodyParameters: Array<{ type: string; text: string }> = [];
-                        
-                        // If there are variables in the body
-                        if (template.components.body.example?.body_text?.[0]) {
-                            // Use the example values provided in the template
-                            template.components.body.example.body_text[0].forEach(text => {
-                                bodyParameters.push({
-                                    type: "text",
-                                    text: text
-                                });
-                            });
-                        } else {
-                            // No variables, just use the body text
-                            bodyParameters.push({
-                                type: "text",
-                                text: template.components.body.text
-                            });
+          await Promise.all(
+            numbers.map(async (number) => {
+              const validatedNumber = number.replace(/[^\d]/g, "");
+              if (!validatedNumber.match(/^\d{10,15}$/)) {
+                throw new Error(`Invalid number format: ${number}`);
+              }
+      
+              // Format components properly for WhatsApp API
+              const formattedComponents: any[] = [];
+              
+              // Add header if it exists
+              if (template.components?.header) {
+                const headerType = template.components.header.type.toLowerCase();
+                formattedComponents.push({
+                  type: "header",
+                  parameters: [{
+                    type: headerType,
+                    ...(headerType === 'text' 
+                      ? { text: template.components.header.text }
+                      : { 
+                          [headerType]: {
+                            link: template.components.header.text
+                          }
                         }
-
-                        formattedComponents.push({
-                            type: "body",
-                            parameters: bodyParameters
-                        });
-                    }
-
-                    // Add footer if it exists
-                    if (template.components?.footer) {
-                        formattedComponents.push({
-                            type: "footer",
-                            text: template.components.footer.text
-                        });
-                    }
-
-                    // Add buttons if they exist
-                    if (template.components?.buttons?.length) {
-                        template.components.buttons.forEach((button, index) => {
-                            const buttonComponent: {
-                                type: string;
-                                sub_type: string;
-                                index: string;
-                                parameters: Array<{
-                                    type: string;
-                                    text?: string;
-                                    payload?: string;
-                                }>;
-                            } = {
-                                type: "button",
-                                sub_type: button.type.toLowerCase() === 'quick_reply' ? 'quick_reply' : button.type.toLowerCase(),
-                                index: index.toString(),
-                                parameters: []
-                            };
-
-                            if (button.type.toLowerCase() === 'quick_reply') {
-                                buttonComponent.parameters = [{
-                                    type: "payload",
-                                    payload: button.text
-                                }];
-                            } else if (button.type.toLowerCase() === 'url') {
-                                buttonComponent.parameters = [{
-                                    type: "text",
-                                    text: button.text
-                                }];
-                            } else if (button.type.toLowerCase() === 'phone_number') {
-                                buttonComponent.parameters = [{
-                                    type: "text",
-                                    text: button.text
-                                }];
-                            }
-
-                            formattedComponents.push(buttonComponent);
-                        });
-                    }
-
-                    const payload = {
-                        messaging_product: "whatsapp",
-                        recipient_type: "individual",
-                        to: validatedNumber,
-                        type: "template",
-                        template: {
-                            name: template.name,
-                            language: {
-                                code: template.language || "en_US"
-                            },
-                            components: formattedComponents
-                        }
-                    };
-                    
-                    console.log('Final API payload:', JSON.stringify(payload, null, 2));
-
-                    const response = await fetch("/api/send-template", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify(payload),
+                    )
+                  }]
+                });
+              }
+      
+              // Add body (required)
+              if (template.components?.body) {
+                const bodyParameters: Array<{ type: string; text: string }> = [];
+                
+                if (template.components.body.example?.body_text?.[0]) {
+                  template.components.body.example.body_text[0].forEach(text => {
+                    bodyParameters.push({
+                      type: "text",
+                      text: text
                     });
-
-                    if (!response.ok) {
-                        const errorData = await response.json();
-                        console.error('API Error Response:', JSON.stringify(errorData, null, 2));
-                        throw new Error(`Failed to share with ${number}: ${errorData.error?.message}`);
+                  });
+                } else {
+                  bodyParameters.push({
+                    type: "text",
+                    text: template.components.body.text
+                  });
+                }
+      
+                formattedComponents.push({
+                  type: "body",
+                  parameters: bodyParameters
+                });
+              }
+      
+              // Add footer if it exists
+              if (template.components?.footer) {
+                formattedComponents.push({
+                  type: "footer",
+                  text: template.components.footer.text
+                });
+              }
+      
+              // Add buttons if they exist (including flow support)
+              if (template.components?.buttons?.length) {
+                template.components.buttons.forEach((button, index) => {
+                  // Handle Flow buttons
+                  if (button.type.toLowerCase() === 'flow') {
+                    const flowComponent = {
+                      type: "button",  // Must be BUTTON type
+                      sub_type: "flow",  // Subtype FLOW
+                      index: "0",
+                      parameters: [{
+                        type: "action",
+                        action: {
+                          flow_token: button.flow_token || "unused",  // Required but can be "unused"
+                          flow_action_data: button.target_screen ? { 
+                            screen: button.target_screen 
+                          } : undefined
+                        }
+                      }]
+                    };
+                    formattedComponents.push(flowComponent);
+                  } else {
+                    // Handle other button types
+                    const buttonComponent = {
+                      type: "button" as const,
+                      sub_type: button.type.toLowerCase() === 'quick_reply' 
+                        ? 'quick_reply' 
+                        : button.type.toLowerCase(),
+                      index: index.toString(),
+                      parameters: [] as any[]
+                    };
+      
+                    if (button.type.toLowerCase() === 'quick_reply') {
+                      buttonComponent.parameters = [{
+                        type: "payload",
+                        payload: button.text
+                      }];
+                    } else if (button.type.toLowerCase() === 'url') {
+                      buttonComponent.parameters = [{
+                        type: "text",
+                        text: button.text
+                      }];
+                    } else if (button.type.toLowerCase() === 'phone_number') {
+                      buttonComponent.parameters = [{
+                        type: "text",
+                        text: button.text
+                      }];
                     }
-                })
-            );
-            alert("Template shared successfully with selected users!");
+      
+                    formattedComponents.push(buttonComponent);
+                  }
+                });
+              }
+      
+              const payload = {
+                messaging_product: "whatsapp",
+                recipient_type: "individual",
+                to: validatedNumber,
+                type: "template",
+                template: {
+                  name: template.name,
+                  language: {
+                    code: template.language || "en_US"
+                  },
+                  components: formattedComponents
+                }
+              };
+              
+              const response = await fetch("/api/send-template", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload),
+              });
+      
+              if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(`Failed to share with ${number}: ${errorData.error?.message}`);
+              }
+            })
+          );
+          alert("Template shared successfully with selected users!");
         } catch (error) {
-            console.error("Error sharing template:", error);
-            alert(error instanceof Error ? error.message : "Failed to share template");
+          console.error("Error sharing template:", error);
+          alert(error instanceof Error ? error.message : "Failed to share template");
         } finally {
-            setSelectedTemplate(null);
+          setSelectedTemplate(null);
         }
-    };
+      };
 
     const addNewNumber = () => {
         const trimmedNumber = newNumber.trim().replace(/[^\d]/g, "");

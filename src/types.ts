@@ -27,11 +27,15 @@ export interface Template {
 }
 
 export type TemplateButton = {
-    type: 'PHONE_NUMBER' | 'URL' | 'QUICK_REPLY';
+    type: 'PHONE_NUMBER' | 'URL' | 'QUICK_REPLY' | 'FLOW';
     text: string;
     phone_number?: string;
     url?: string;
     example?: string[];
+    // Flow-specific properties
+    flow_id?: string;
+    flow_token?: string;
+    target_screen?: string;
 };
 
 export type CreateTemplatePayload = {
@@ -49,6 +53,16 @@ export type CreateTemplatePayload = {
         footer?: {
             text: string;
         };
-        buttons?: TemplateButton[];
+        buttons?: (TemplateButton | FlowButton)[];
     };
+};
+
+// Additional type for flow buttons
+export type FlowButton = {
+    type: 'FLOW';
+    text: string;
+    flow_id: string;
+    flow_token: string;
+    target_screen: string;
+    example?: string[];
 };

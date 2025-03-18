@@ -135,7 +135,7 @@ async function sendCatalogMessage(to: string) {
     try {
         log(`Sending product catalog to ${to}`, '📋');
         const url = `https://graph.facebook.com/v19.0/${WHATSAPP_PHONE_NUMBER_ID}/messages`;
-        const products: { Grade: string; Model: string; Storage: string; Price: number }[] = await fetch("http://45.33.101.184:3000/products/products").then(res => res.json());
+        const products: { Grade: string; Model: string; Storage: string; Price: number }[] = await fetch("http://66.228.61.181:3000/products/products").then(res => res.json());
 
         const productsData: { [key: string]: string[] } = products.reduce((acc: { [key: string]: string[] }, product) => {
             const { Grade, Model, Storage, Price } = product;
@@ -429,7 +429,7 @@ async function unsubscribeUser(flowToken: string) {
     try {
         log(`Unsubscribing user with flow token ${flowToken}`, '🚫');
 
-        const response = await fetch(`http://45.33.101.184:3000/users/${flowToken}`, {
+        const response = await fetch(`http://66.228.61.181:3000/users/${flowToken}`, {
             method: 'DELETE',
             headers: {
                 'Content-Type': 'application/json'

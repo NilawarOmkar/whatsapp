@@ -8,7 +8,7 @@ const ACCESS_TOKEN = process.env.NEXT_PUBLIC_WHATSAPP_API_TOKEN;
 export async function GET() {
     try {
         const response = await fetch(
-            `${BASE_URL}/${WABA_ID}/message_templates?fields=name,status,category,language`,
+            `${BASE_URL}/${WABA_ID}/message_templates?fields=name,status,category,language,components`,
             {
                 method: "GET",
                 headers: {
