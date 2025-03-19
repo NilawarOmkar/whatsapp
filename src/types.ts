@@ -1,30 +1,17 @@
 export interface Template {
     id: string;
     name: string;
-    status: 'APPROVED' | 'PENDING' | 'REJECTED';
-    category: string;
     language: string;
+    category?: string;
+    status?: string;
     components: {
-        header?: {
-            type: 'TEXT' | 'IMAGE' | 'VIDEO' | 'DOCUMENT';
-            text?: string;
-            example?: {
-                header_handle: string[];
-            };
-        };
-        body: {
-            text: string;
-            example?: {
-                body_text: string[][];
-            };
-        };
-        footer?: {
-            text: string;
-        };
-        buttons?: TemplateButton[];
+        header?: { type: string; text: string };
+        body?: { text: string; example?: { body_text: string[][] } };
+        footer?: { text: string };
+        buttons?: { type: string; text?: string }[];
     };
-    created_at?: string;
 }
+
 
 export type TemplateButton = {
     type: 'PHONE_NUMBER' | 'URL' | 'QUICK_REPLY' | 'FLOW';
