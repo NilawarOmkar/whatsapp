@@ -4,7 +4,6 @@ import { JSX, useState, useRef, useEffect } from "react";
 import { MessageSquareMore } from "lucide-react";
 import { Button } from "./ui/button";
 import pLimit from 'p-limit';
-import { getUsers } from "@/lib/state";
 
 interface Message {
   content: string;
@@ -12,6 +11,7 @@ interface Message {
   timestamp: Date;
   status: 'sent' | 'delivered' | 'read';
   file?: File | null;
+  phone?: string;
 }
 
 export default function SendMessagePage(): JSX.Element {
@@ -24,7 +24,7 @@ export default function SendMessagePage(): JSX.Element {
   const [loading, setLoading] = useState(true);
   const [responseMessage, setResponseMessage] = useState<{
     success: boolean;
-    message: string
+    message: string;
   } | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -32,27 +32,39 @@ export default function SendMessagePage(): JSX.Element {
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    async function fetchMessages() {
-      try {
-        const res = await fetch("/api/proxy");
-        if (!res.ok) {
-          throw new Error("Failed to fetch users");
-        }
-        const users: { phone_number: string }[] = await res.json();
-        console.log("Fetched users:", users);
 
+    async function fetchData() {
+      try {
+        // Fetch users
+        const usersRes = await fetch("/api/proxy");
+        if (!usersRes.ok) throw new Error("Failed to fetch users");
+        const users: { phone_number: string }[] = await usersRes.json();
         const numbers = [...new Set(users.map((user: any) => String(user.phone_number)))];
         setPhoneNumbers(numbers);
 
-        console.log("Extracted phone numbers:", numbers);
+        // Fetch messages
+        const messagesRes = await fetch("/api/messages");
+        if (!messagesRes.ok) throw new Error("Failed to fetch messages");
+        const { messages: apiMessages } = await messagesRes.json();
+
+        // Transform API messages to Message format
+        const receivedMessages: Message[] = apiMessages.map((msg: any) => ({
+          content: msg.message,
+          isSent: false,
+          timestamp: new Date(msg.timestamp).toISOString(),
+          status: 'delivered',
+          phone: msg.phone_number
+        }));
+
+        setMessages(prev => [...receivedMessages, ...prev]);
       } catch (error) {
-        console.error("Error fetching messages:", error);
+        console.error("Error fetching data:", error);
       } finally {
         setLoading(false);
       }
     }
 
-    fetchMessages();
+    fetchData();
   }, []);
 
   const sendMessage = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -64,8 +76,10 @@ export default function SendMessagePage(): JSX.Element {
       isSent: true,
       timestamp: new Date(),
       status: 'sent',
-      file
+      file,
+      phone
     };
+
     setMessages(prev => [...prev, newMessage]);
 
     try {
@@ -79,16 +93,14 @@ export default function SendMessagePage(): JSX.Element {
         body: formData,
       });
 
-      const result = await res.json();
-
-      setResponseMessage(res.ok ?
-        { success: true, message: `Message sent to ${phone}` } :
-        { success: false, message: result.error || "Failed to send message" }
-      );
-
       setMessages(prev => prev.map(msg =>
         msg === newMessage ? { ...msg, status: res.ok ? 'delivered' : 'sent' } : msg
       ));
+
+      setResponseMessage(res.ok ?
+        { success: true, message: `Message sent to ${phone}` } :
+        { success: false, message: "Failed to send message" }
+      );
 
     } catch (error) {
       setResponseMessage({
@@ -109,11 +121,12 @@ export default function SendMessagePage(): JSX.Element {
 
     const requests = phoneNumbers.map((number) => {
       const newMessage: Message = {
-        content: `Broadcast message to ${number}`,
+        content: `Broadcast: ${message}`,
         isSent: true,
         timestamp: new Date(),
         status: 'sent',
-        file: null
+        file: null,
+        phone: number
       };
       setMessages(prev => [...prev, newMessage]);
 
@@ -123,18 +136,25 @@ export default function SendMessagePage(): JSX.Element {
       if (file) formData.append("file", file);
 
       return limit(async () => {
-        const response = await fetch("/api/send-message", { method: "POST", body: formData });
+        try {
+          const response = await fetch("/api/send-message", {
+            method: "POST",
+            body: formData
+          });
 
-        setMessages(prev => prev.map(msg =>
-          msg === newMessage ? { ...msg, status: response.ok ? 'delivered' : 'sent' } : msg
-        ));
+          setMessages(prev => prev.map(msg =>
+            msg === newMessage ? { ...msg, status: response.ok ? 'delivered' : 'sent' } : msg
+          ));
 
-        return response;
+          return response;
+        } catch (error) {
+          console.error(`Failed to send to ${number}:`, error);
+          return { ok: false };
+        }
       });
     });
 
     const results = await Promise.allSettled(requests);
-
     const failedNumbers = results
       .map((result, index) => (result.status === "rejected" ? phoneNumbers[index] : null))
       .filter(Boolean);
@@ -144,9 +164,6 @@ export default function SendMessagePage(): JSX.Element {
       message: `Broadcasted to ${phoneNumbers.length - failedNumbers.length} contacts. Failed: ${failedNumbers.length}`
     });
 
-    if (failedNumbers.length > 0) {
-      console.warn("Failed to send messages to:", failedNumbers);
-    }
     setIsBroadcasting(false);
   };
 
@@ -165,8 +182,18 @@ export default function SendMessagePage(): JSX.Element {
       if (!response.ok) {
         throw new Error("Failed to send interactive message");
       }
+
+      setResponseMessage({
+        success: true,
+        message: "Interactive message sent successfully"
+      });
+
     } catch (error) {
       console.error("Error sending interactive message:", error);
+      setResponseMessage({
+        success: false,
+        message: "Failed to send interactive message"
+      });
     }
   };
 
@@ -178,23 +205,22 @@ export default function SendMessagePage(): JSX.Element {
       isSent: true,
       timestamp: new Date(),
       status: 'sent',
-      file: null
+      file: null,
+      phone
     };
+
     setMessages(prev => [...prev, newMessage]);
 
-    const formData = new FormData();
-    formData.append("phone", phone);
-
-    console.log(`Sending to: ${phone}`);
-
     try {
+      const formData = new FormData();
+      formData.append("phone", phone);
+
       const response = await fetch("/api/sendMessage", {
         method: "POST",
         body: formData,
       });
 
       const result = await response.json();
-      console.log(`Response for ${phone}:`, result);
 
       setMessages(prev => prev.map(msg =>
         msg === newMessage ? { ...msg, status: response.ok ? 'delivered' : 'sent' } : msg
@@ -240,8 +266,7 @@ export default function SendMessagePage(): JSX.Element {
             key={index}
             className={`flex ${msg.isSent ? 'justify-end' : 'justify-start'}`}
           >
-            <div className={`p-3 rounded-lg max-w-[80%] shadow ${msg.isSent ? 'bg-[#dcf8c6]' : 'bg-white'
-              }`}>
+            <div className={`p-3 rounded-lg max-w-[80%] shadow bg-[#dcf8c6]`}>
               {msg.file && (
                 <div className="mb-2 text-sm text-gray-500 flex items-center">
                   <svg
@@ -261,14 +286,30 @@ export default function SendMessagePage(): JSX.Element {
                   {msg.file.name}
                 </div>
               )}
+              {msg.isSent && (
+                <div className="text-xs text-gray-500 mb-1">
+                  To: {msg.phone}
+                </div>
+              )}
+              {!msg.isSent && (
+                <div className="text-xs text-gray-500 mb-1">
+                  {msg.phone}
+                </div>
+              )}
               <p className="text-gray-800">{msg.content}</p>
               <div className="flex items-center justify-end gap-2 mt-2">
                 <span className="text-xs text-gray-500">
-                  {msg.timestamp.toLocaleTimeString([], {
+                  {new Date(msg.timestamp).toLocaleDateString([], {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric'
+                  })}{" "}
+                  {new Date(msg.timestamp).toLocaleTimeString([], {
                     hour: '2-digit',
                     minute: '2-digit'
                   })}
                 </span>
+
                 {msg.isSent && (
                   <span className="text-xs text-gray-500">
                     {msg.status === 'read' ? '✓✓' :
@@ -284,7 +325,7 @@ export default function SendMessagePage(): JSX.Element {
 
       {/* Input Area */}
       <div className="bg-white p-4 border-t border-gray-200">
-        <div className="flex items-center gap-2"> {/* Flex container to align form and button */}
+        <div className="flex items-center gap-2">
           <form onSubmit={sendMessage} className="flex gap-2 items-center flex-1">
             <div className="relative flex-1">
               <button
@@ -375,12 +416,11 @@ export default function SendMessagePage(): JSX.Element {
       </div>
 
 
-
-
-      {/* Status Messages */}
       {/* {responseMessage && (
-        <div className={`p-2 text-center text-sm ${responseMessage.success ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-          }`}>
+        <div className={`p-2 text-center text-sm ${responseMessage.success 
+          ? 'bg-green-100 text-green-700' 
+          : 'bg-red-100 text-red-700'}`}
+        >
           {responseMessage.message}
         </div>
       )} */}

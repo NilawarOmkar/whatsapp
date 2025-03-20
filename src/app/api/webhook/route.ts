@@ -46,7 +46,11 @@ export async function POST(req: NextRequest) {
                             await sendShippingStatus(from, orderId);
                             userStates[from] = "";
                         } else {
-                            await sendMainMenu(from);
+                            if (/^hi$/i.test(message.text.body.trim())) {
+                                await sendMainMenu(from);
+                            } else {
+                                await storeMessageInRabbitMQ(from, message.text.body);
+                            }
                         }
                     }
 
@@ -448,5 +452,30 @@ async function unsubscribeUser(flowToken: string) {
     } catch (error: any) {
         log(`Unsubscribe error for flow token ${flowToken}: ${error.message}`, '❌');
         throw error;
+    }
+}
+
+async function storeMessageInRabbitMQ(phone: string, message: string) {
+    try {
+        log(`Storing message from ${phone} in RabbitMQ: ${message}`, '🐇');
+        const response = await fetch("http://localhost:3001/rabbitmq/replies", {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                phone_number: phone,
+                message: message,
+                timestamp: new Date().toISOString()
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        log(`Message stored successfully for ${phone}`, '✅');
+    } catch (error: any) {
+        log(`Failed to store message for ${phone}: ${error.message}`, '❌');
     }
 }
