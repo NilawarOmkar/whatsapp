@@ -1,7 +1,7 @@
 'use client';
 
 import { JSX, useState, useRef, useEffect } from "react";
-import { MessageSquareMore } from "lucide-react";
+import { MessageSquareMore, Users, X, Plus, Pencil, Check, CheckCircle } from "lucide-react";
 import { Button } from "./ui/button";
 import pLimit from 'p-limit';
 
@@ -14,7 +14,17 @@ interface Message {
   phone?: string;
 }
 
+interface Group {
+  id: string;
+  name: string;
+  numbers: string[];
+  color: string;
+}
+
+const colors = ['#075e54', '#128c7e', '#25D366', '#34B7F1', '#FFA500'];
+
 export default function SendMessagePage(): JSX.Element {
+  // Original state
   const [phone, setPhone] = useState<string>("");
   const [message, setMessage] = useState<string>("");
   const [file, setFile] = useState<File | null>(null);
@@ -27,31 +37,61 @@ export default function SendMessagePage(): JSX.Element {
     message: string;
   } | null>(null);
 
+  // Group state
+  const [groups, setGroups] = useState<Group[]>([]);
+  const [selectedGroups, setSelectedGroups] = useState<Group[]>([]);
+  const [isGroupMenuOpen, setIsGroupMenuOpen] = useState(false);
+  const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
+  const [newGroupName, setNewGroupName] = useState("");
+  const [selectedNumbersForGroup, setSelectedNumbersForGroup] = useState<string[]>([]);
+  const [editingGroup, setEditingGroup] = useState<Group | null>(null);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const groupMenuRef = useRef<HTMLDivElement>(null);
+  const groupModalRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    const savedGroups = localStorage.getItem('whatsapp-groups');
+    if (savedGroups) setGroups(JSON.parse(savedGroups));
+  }, []);
 
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (groupMenuRef.current && !groupMenuRef.current.contains(event.target as Node)) {
+        setIsGroupMenuOpen(false);
+      }
+      if (groupModalRef.current && !groupModalRef.current.contains(event.target as Node)) {
+        setIsGroupModalOpen(false);
+        setEditingGroup(null);
+        setNewGroupName("");
+        setSelectedNumbersForGroup([]);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // Original fetch data function
+  useEffect(() => {
     async function fetchData() {
       try {
-        // Fetch users
         const usersRes = await fetch("/api/proxy");
         if (!usersRes.ok) throw new Error("Failed to fetch users");
         const users: { phone_number: string }[] = await usersRes.json();
         const numbers = [...new Set(users.map((user: any) => String(user.phone_number)))];
         setPhoneNumbers(numbers);
 
-        // Fetch messages
         const messagesRes = await fetch("/api/messages");
         if (!messagesRes.ok) throw new Error("Failed to fetch messages");
         const { messages: apiMessages } = await messagesRes.json();
 
-        // Transform API messages to Message format
         const receivedMessages: Message[] = apiMessages.map((msg: any) => ({
           content: msg.message,
           isSent: false,
-          timestamp: new Date(msg.timestamp).toISOString(),
+          timestamp: new Date(msg.timestamp),
           status: 'delivered',
           phone: msg.phone_number
         }));
@@ -63,44 +103,101 @@ export default function SendMessagePage(): JSX.Element {
         setLoading(false);
       }
     }
-
     fetchData();
   }, []);
 
-  const sendMessage = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (!phone || !message) return;
+  // Group management functions
+  const createOrUpdateGroup = () => {
+    if (!newGroupName || selectedNumbersForGroup.length === 0) return;
 
-    const newMessage: Message = {
-      content: message,
-      isSent: true,
-      timestamp: new Date(),
-      status: 'sent',
-      file,
-      phone
+    const newGroup: Group = {
+      id: editingGroup ? editingGroup.id : Date.now().toString(),
+      name: newGroupName,
+      numbers: selectedNumbersForGroup,
+      color: editingGroup ? editingGroup.color : colors[groups.length % colors.length]
     };
 
-    setMessages(prev => [...prev, newMessage]);
+    setGroups(prev => {
+      const updatedGroups = editingGroup
+        ? prev.map(g => g.id === editingGroup.id ? newGroup : g)
+        : [...prev, newGroup];
+      localStorage.setItem('whatsapp-groups', JSON.stringify(updatedGroups));
+      return updatedGroups;
+    });
+
+    setNewGroupName("");
+    setSelectedNumbersForGroup([]);
+    setEditingGroup(null);
+    setIsGroupModalOpen(false);
+  };
+
+  const deleteGroup = (groupId: string) => {
+    setGroups(prev => {
+      const updatedGroups = prev.filter(g => g.id !== groupId);
+      localStorage.setItem('whatsapp-groups', JSON.stringify(updatedGroups));
+      return updatedGroups;
+    });
+    setSelectedGroups(prev => prev.filter(g => g.id !== groupId));
+  };
+
+  // Modified send function
+  const sendMessage = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!message || (selectedGroups.length === 0 && !phone)) return;
 
     try {
-      const formData = new FormData();
-      formData.append("phone", phone);
-      formData.append("message", message);
-      if (file) formData.append("file", file);
+      let numbersToSend: string[] = [];
 
-      const res = await fetch("/api/send-message", {
-        method: "POST",
-        body: formData,
+      if (selectedGroups.length > 0) {
+        numbersToSend = selectedGroups.flatMap(group => group.numbers);
+      } else if (phone) {
+        numbersToSend = [phone];
+      }
+
+      const failedNumbers: string[] = [];
+      const limit = pLimit(10);
+
+      const requests = numbersToSend.map((number) => {
+        const newMessage: Message = {
+          content: message,
+          isSent: true,
+          timestamp: new Date(),
+          status: 'sent',
+          file,
+          phone: number
+        };
+
+        setMessages(prev => [...prev, newMessage]);
+
+        const formData = new FormData();
+        formData.append("phone", number);
+        formData.append("message", message);
+        if (file) formData.append("file", file);
+
+        return limit(async () => {
+          try {
+            const res = await fetch("/api/send-message", {
+              method: "POST",
+              body: formData,
+            });
+
+            setMessages(prev => prev.map(msg =>
+              msg === newMessage ? { ...msg, status: res.ok ? 'delivered' : 'sent' } : msg
+            ));
+
+            if (!res.ok) failedNumbers.push(number);
+          } catch (error) {
+            failedNumbers.push(number);
+          }
+        });
       });
 
-      setMessages(prev => prev.map(msg =>
-        msg === newMessage ? { ...msg, status: res.ok ? 'delivered' : 'sent' } : msg
-      ));
+      await Promise.allSettled(requests);
 
-      setResponseMessage(res.ok ?
-        { success: true, message: `Message sent to ${phone}` } :
-        { success: false, message: "Failed to send message" }
-      );
+      setResponseMessage({
+        success: true,
+        message: `Message sent to ${numbersToSend.length - failedNumbers.length} recipients. Failed: ${failedNumbers.length}`
+      });
 
     } catch (error) {
       setResponseMessage({
@@ -111,8 +208,11 @@ export default function SendMessagePage(): JSX.Element {
 
     setMessage("");
     setFile(null);
+    setSelectedGroups([]);
+    setPhone("");
   };
 
+  // Original broadcast function remains unchanged
   const broadcastMessages = async () => {
     if (isBroadcasting) return;
     setIsBroadcasting(true);
@@ -121,12 +221,11 @@ export default function SendMessagePage(): JSX.Element {
 
     const requests = phoneNumbers.map((number) => {
       const newMessage: Message = {
-        content: `Broadcast: ${message}`,
+        content: `Broadcast message to ${number}`,
         isSent: true,
         timestamp: new Date(),
         status: 'sent',
-        file: null,
-        phone: number
+        file: null
       };
       setMessages(prev => [...prev, newMessage]);
 
@@ -136,25 +235,18 @@ export default function SendMessagePage(): JSX.Element {
       if (file) formData.append("file", file);
 
       return limit(async () => {
-        try {
-          const response = await fetch("/api/send-message", {
-            method: "POST",
-            body: formData
-          });
+        const response = await fetch("/api/send-message", { method: "POST", body: formData });
 
-          setMessages(prev => prev.map(msg =>
-            msg === newMessage ? { ...msg, status: response.ok ? 'delivered' : 'sent' } : msg
-          ));
+        setMessages(prev => prev.map(msg =>
+          msg === newMessage ? { ...msg, status: response.ok ? 'delivered' : 'sent' } : msg
+        ));
 
-          return response;
-        } catch (error) {
-          console.error(`Failed to send to ${number}:`, error);
-          return { ok: false };
-        }
+        return response;
       });
     });
 
     const results = await Promise.allSettled(requests);
+
     const failedNumbers = results
       .map((result, index) => (result.status === "rejected" ? phoneNumbers[index] : null))
       .filter(Boolean);
@@ -164,6 +256,9 @@ export default function SendMessagePage(): JSX.Element {
       message: `Broadcasted to ${phoneNumbers.length - failedNumbers.length} contacts. Failed: ${failedNumbers.length}`
     });
 
+    if (failedNumbers.length > 0) {
+      console.warn("Failed to send messages to:", failedNumbers);
+    }
     setIsBroadcasting(false);
   };
 
@@ -182,18 +277,8 @@ export default function SendMessagePage(): JSX.Element {
       if (!response.ok) {
         throw new Error("Failed to send interactive message");
       }
-
-      setResponseMessage({
-        success: true,
-        message: "Interactive message sent successfully"
-      });
-
     } catch (error) {
       console.error("Error sending interactive message:", error);
-      setResponseMessage({
-        success: false,
-        message: "Failed to send interactive message"
-      });
     }
   };
 
@@ -205,22 +290,23 @@ export default function SendMessagePage(): JSX.Element {
       isSent: true,
       timestamp: new Date(),
       status: 'sent',
-      file: null,
-      phone
+      file: null
     };
-
     setMessages(prev => [...prev, newMessage]);
 
-    try {
-      const formData = new FormData();
-      formData.append("phone", phone);
+    const formData = new FormData();
+    formData.append("phone", phone);
 
+    console.log(`Sending to: ${phone}`);
+
+    try {
       const response = await fetch("/api/sendMessage", {
         method: "POST",
         body: formData,
       });
 
       const result = await response.json();
+      console.log(`Response for ${phone}:`, result);
 
       setMessages(prev => prev.map(msg =>
         msg === newMessage ? { ...msg, status: response.ok ? 'delivered' : 'sent' } : msg
@@ -248,16 +334,192 @@ export default function SendMessagePage(): JSX.Element {
 
   return (
     <div className="h-full flex flex-col bg-[#ece5dd]">
-      {/* Chat Header */}
-      <div className="bg-[#075e54] p-4 flex items-center justify-between">
-        <input
-          type="text"
-          value={phone}
-          onChange={(e) => setPhone(e.target.value)}
-          placeholder="Enter phone number (+1234567890)"
-          className="bg-transparent text-white placeholder-gray-300 focus:outline-none w-full"
-        />
+      {/* Chat Header with Groups */}
+      <div className="bg-[#075e54] p-4 flex items-center gap-2 relative">
+        <div className="flex-1 flex flex-wrap gap-2 items-center min-h-[40px]">
+          {selectedGroups.map(group => (
+            <div
+              key={group.id}
+              style={{ backgroundColor: group.color }}
+              className="rounded-full px-3 py-1 text-sm flex items-center gap-2 text-white"
+            >
+              {group.name}
+              <button
+                onClick={() => setSelectedGroups(prev => prev.filter(g => g.id !== group.id))}
+                className="hover:text-[#dcf8c6]"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          ))}
+          <input
+            type="text"
+            value={phone}
+            onChange={(e) => {
+              setPhone(e.target.value);
+              setSelectedGroups([]);
+            }}
+            placeholder={selectedGroups.length > 0 ? "" : "Enter phone number or select groups"}
+            className="bg-transparent text-white placeholder-gray-300 focus:outline-none flex-1 min-w-[200px]"
+          />
+        </div>
+
+        {/* Group Management Button */}
+        <div className="relative" ref={groupMenuRef}>
+          <button
+            onClick={() => setIsGroupMenuOpen(!isGroupMenuOpen)}
+            className="text-white hover:text-[#dcf8c6] p-2 relative"
+          >
+            <Users />
+            {selectedGroups.length > 0 && (
+              <span className="absolute -top-1 -right-1 bg-red-500 text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                {selectedGroups.length}
+              </span>
+            )}
+          </button>
+
+          {/* Group Dropdown Menu */}
+          {isGroupMenuOpen && (
+            <div className="absolute right-0 top-full mt-2 w-64 bg-white rounded-lg shadow-lg p-2 z-50">
+              <div className="max-h-64 overflow-y-auto">
+                <button
+                  onClick={() => {
+                    setIsGroupModalOpen(true);
+                    setIsGroupMenuOpen(false);
+                  }}
+                  className="w-full flex items-center gap-2 p-2 hover:bg-gray-100 rounded text-sm"
+                >
+                  <Plus size={16} /> Create New Group
+                </button>
+
+                {groups.map(group => (
+                  <div key={group.id} className="flex items-center justify-between p-2 hover:bg-gray-100 rounded">
+                    <div className="flex items-center gap-2 flex-1">
+                      <input
+                        type="checkbox"
+                        checked={selectedGroups.some(g => g.id === group.id)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedGroups(prev => [...prev, group]);
+                            setPhone("");
+                          } else {
+                            setSelectedGroups(prev => prev.filter(g => g.id !== group.id));
+                          }
+                        }}
+                        className="accent-[#075e54]"
+                      />
+                      <div
+                        className="w-3 h-3 rounded-full"
+                        style={{ backgroundColor: group.color }}
+                      />
+                      <span className="truncate flex-1">{group.name}</span>
+                      <span className="text-xs text-gray-500">({group.numbers.length})</span>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => {
+                          setEditingGroup(group);
+                          setNewGroupName(group.name);
+                          setSelectedNumbersForGroup(group.numbers);
+                          setIsGroupModalOpen(true);
+                          setIsGroupMenuOpen(false);
+                        }}
+                        className="text-gray-500 hover:text-[#075e54] p-1"
+                      >
+                        <Pencil size={14} />
+                      </button>
+                      <button
+                        onClick={() => deleteGroup(group.id)}
+                        className="text-gray-500 hover:text-red-600 p-1"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
+
+      {/* Group Creation/Edit Modal */}
+      {isGroupModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div
+            ref={groupModalRef}
+            className="bg-white p-6 rounded-lg w-96 max-h-[90vh] flex flex-col"
+          >
+            <h3 className="font-bold mb-4 text-lg">
+              {editingGroup ? "Edit Group" : "Create New Group"}
+            </h3>
+            <input
+              type="text"
+              placeholder="Group Name"
+              value={newGroupName}
+              onChange={(e) => setNewGroupName(e.target.value)}
+              className="w-full mb-4 p-2 border rounded focus:outline-none focus:ring-2 focus:ring-[#075e54]"
+            />
+            <div className="mb-4 flex flex-wrap gap-2">
+              {colors.map(color => (
+                <button
+                  key={color}
+                  onClick={() => {
+                    if (editingGroup) {
+                      setEditingGroup({ ...editingGroup, color });
+                    }
+                  }}
+                  className={`w-8 h-8 rounded-full border-2 ${(editingGroup?.color === color) ? 'border-black' : 'border-transparent'
+                    }`}
+                  style={{ backgroundColor: color }}
+                />
+              ))}
+            </div>
+            <div className="flex-1 overflow-y-auto mb-4 border rounded">
+              {phoneNumbers.map((num) => (
+                <label
+                  key={num}
+                  className="flex items-center space-x-2 p-2 hover:bg-gray-50 cursor-pointer"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedNumbersForGroup.includes(num)}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setSelectedNumbersForGroup([...selectedNumbersForGroup, num]);
+                      } else {
+                        setSelectedNumbersForGroup(selectedNumbersForGroup.filter(n => n !== num));
+                      }
+                    }}
+                    className="accent-[#075e54]"
+                  />
+                  <span className="text-sm">{num}</span>
+                </label>
+              ))}
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button
+                onClick={() => {
+                  setIsGroupModalOpen(false);
+                  setEditingGroup(null);
+                  setNewGroupName("");
+                  setSelectedNumbersForGroup([]);
+                }}
+                variant="outline"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={createOrUpdateGroup}
+                className="bg-[#075e54] text-white hover:bg-[#054d43]"
+                disabled={!newGroupName || selectedNumbersForGroup.length === 0}
+              >
+                {editingGroup ? "Save Changes" : "Create Group"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Messages Container */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-[#efeae2]">
@@ -325,7 +587,7 @@ export default function SendMessagePage(): JSX.Element {
 
       {/* Input Area */}
       <div className="bg-white p-4 border-t border-gray-200">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2"> {/* Flex container to align form and button */}
           <form onSubmit={sendMessage} className="flex gap-2 items-center flex-1">
             <div className="relative flex-1">
               <button
@@ -416,14 +678,7 @@ export default function SendMessagePage(): JSX.Element {
       </div>
 
 
-      {/* {responseMessage && (
-        <div className={`p-2 text-center text-sm ${responseMessage.success 
-          ? 'bg-green-100 text-green-700' 
-          : 'bg-red-100 text-red-700'}`}
-        >
-          {responseMessage.message}
-        </div>
-      )} */}
+
     </div>
   );
 }
