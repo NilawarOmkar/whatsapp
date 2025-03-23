@@ -1,7 +1,7 @@
 'use client';
 
 import { JSX, useState, useRef, useEffect } from "react";
-import { MessageSquareMore, Users, X, Plus, Pencil, Check, CheckCircle } from "lucide-react";
+import { MessageSquareMore, Users, X, Plus, Pencil } from "lucide-react";
 import { Button } from "./ui/button";
 import pLimit from 'p-limit';
 
@@ -12,19 +12,16 @@ interface Message {
   status: 'sent' | 'delivered' | 'read';
   file?: File | null;
   phone?: string;
+  group?: string;
 }
 
 interface Group {
   id: string;
   name: string;
   numbers: string[];
-  color: string;
 }
 
-const colors = ['#075e54', '#128c7e', '#25D366', '#34B7F1', '#FFA500'];
-
 export default function SendMessagePage(): JSX.Element {
-  // Original state
   const [phone, setPhone] = useState<string>("");
   const [message, setMessage] = useState<string>("");
   const [file, setFile] = useState<File | null>(null);
@@ -43,8 +40,10 @@ export default function SendMessagePage(): JSX.Element {
   const [isGroupMenuOpen, setIsGroupMenuOpen] = useState(false);
   const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
   const [newGroupName, setNewGroupName] = useState("");
-  const [selectedNumbersForGroup, setSelectedNumbersForGroup] = useState<string[]>([]);
+  const [newGroupNumbers, setNewGroupNumbers] = useState<string>("");
   const [editingGroup, setEditingGroup] = useState<Group | null>(null);
+  const [newNumberInput, setNewNumberInput] = useState<string>("");
+  const [selectedNumbersForGroup, setSelectedNumbersForGroup] = useState<string[]>([]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -66,7 +65,7 @@ export default function SendMessagePage(): JSX.Element {
         setIsGroupModalOpen(false);
         setEditingGroup(null);
         setNewGroupName("");
-        setSelectedNumbersForGroup([]);
+        setNewGroupNumbers("");
       }
     };
 
@@ -74,7 +73,6 @@ export default function SendMessagePage(): JSX.Element {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Original fetch data function
   useEffect(() => {
     async function fetchData() {
       try {
@@ -106,15 +104,13 @@ export default function SendMessagePage(): JSX.Element {
     fetchData();
   }, []);
 
-  // Group management functions
   const createOrUpdateGroup = () => {
     if (!newGroupName || selectedNumbersForGroup.length === 0) return;
 
     const newGroup: Group = {
       id: editingGroup ? editingGroup.id : Date.now().toString(),
       name: newGroupName,
-      numbers: selectedNumbersForGroup,
-      color: editingGroup ? editingGroup.color : colors[groups.length % colors.length]
+      numbers: [...new Set(selectedNumbersForGroup)]
     };
 
     setGroups(prev => {
@@ -131,6 +127,21 @@ export default function SendMessagePage(): JSX.Element {
     setIsGroupModalOpen(false);
   };
 
+  // Add number to group
+  const addNumberToGroup = () => {
+    const number = newNumberInput.trim();
+    if (number && !selectedNumbersForGroup.includes(number)) {
+      setSelectedNumbersForGroup(prev => [...prev, number]);
+      setNewNumberInput("");
+    }
+  };
+
+  // Remove number from group
+  const removeNumberFromGroup = (number: string) => {
+    setSelectedNumbersForGroup(prev => prev.filter(n => n !== number));
+  };
+
+
   const deleteGroup = (groupId: string) => {
     setGroups(prev => {
       const updatedGroups = prev.filter(g => g.id !== groupId);
@@ -140,7 +151,6 @@ export default function SendMessagePage(): JSX.Element {
     setSelectedGroups(prev => prev.filter(g => g.id !== groupId));
   };
 
-  // Modified send function
   const sendMessage = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!message || (selectedGroups.length === 0 && !phone)) return;
@@ -164,7 +174,8 @@ export default function SendMessagePage(): JSX.Element {
           timestamp: new Date(),
           status: 'sent',
           file,
-          phone: number
+          phone: number,
+          group: selectedGroups.length > 0 ? selectedGroups.map(g => g.name).join(', ') : undefined
         };
 
         setMessages(prev => [...prev, newMessage]);
@@ -212,7 +223,6 @@ export default function SendMessagePage(): JSX.Element {
     setPhone("");
   };
 
-  // Original broadcast function remains unchanged
   const broadcastMessages = async () => {
     if (isBroadcasting) return;
     setIsBroadcasting(true);
@@ -334,15 +344,11 @@ export default function SendMessagePage(): JSX.Element {
 
   return (
     <div className="h-full flex flex-col bg-[#ece5dd]">
-      {/* Chat Header with Groups */}
+      {/* Chat Header */}
       <div className="bg-[#075e54] p-4 flex items-center gap-2 relative">
         <div className="flex-1 flex flex-wrap gap-2 items-center min-h-[40px]">
           {selectedGroups.map(group => (
-            <div
-              key={group.id}
-              style={{ backgroundColor: group.color }}
-              className="rounded-full px-3 py-1 text-sm flex items-center gap-2 text-white"
-            >
+            <div key={group.id} className="bg-[#128c7e] rounded-full px-3 py-1 text-sm flex items-center gap-2 text-white">
               {group.name}
               <button
                 onClick={() => setSelectedGroups(prev => prev.filter(g => g.id !== group.id))}
@@ -364,7 +370,6 @@ export default function SendMessagePage(): JSX.Element {
           />
         </div>
 
-        {/* Group Management Button */}
         <div className="relative" ref={groupMenuRef}>
           <button
             onClick={() => setIsGroupMenuOpen(!isGroupMenuOpen)}
@@ -378,7 +383,6 @@ export default function SendMessagePage(): JSX.Element {
             )}
           </button>
 
-          {/* Group Dropdown Menu */}
           {isGroupMenuOpen && (
             <div className="absolute right-0 top-full mt-2 w-64 bg-white rounded-lg shadow-lg p-2 z-50">
               <div className="max-h-64 overflow-y-auto">
@@ -408,10 +412,6 @@ export default function SendMessagePage(): JSX.Element {
                         }}
                         className="accent-[#075e54]"
                       />
-                      <div
-                        className="w-3 h-3 rounded-full"
-                        style={{ backgroundColor: group.color }}
-                      />
                       <span className="truncate flex-1">{group.name}</span>
                       <span className="text-xs text-gray-500">({group.numbers.length})</span>
                     </div>
@@ -420,7 +420,7 @@ export default function SendMessagePage(): JSX.Element {
                         onClick={() => {
                           setEditingGroup(group);
                           setNewGroupName(group.name);
-                          setSelectedNumbersForGroup(group.numbers);
+                          setNewGroupNumbers(group.numbers.join('\n'));
                           setIsGroupModalOpen(true);
                           setIsGroupMenuOpen(false);
                         }}
@@ -445,78 +445,74 @@ export default function SendMessagePage(): JSX.Element {
 
       {/* Group Creation/Edit Modal */}
       {isGroupModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div
-            ref={groupModalRef}
-            className="bg-white p-6 rounded-lg w-96 max-h-[90vh] flex flex-col"
-          >
-            <h3 className="font-bold mb-4 text-lg">
-              {editingGroup ? "Edit Group" : "Create New Group"}
-            </h3>
-            <input
-              type="text"
-              placeholder="Group Name"
-              value={newGroupName}
-              onChange={(e) => setNewGroupName(e.target.value)}
-              className="w-full mb-4 p-2 border rounded focus:outline-none focus:ring-2 focus:ring-[#075e54]"
-            />
-            <div className="mb-4 flex flex-wrap gap-2">
-              {colors.map(color => (
-                <button
-                  key={color}
-                  onClick={() => {
-                    if (editingGroup) {
-                      setEditingGroup({ ...editingGroup, color });
-                    }
-                  }}
-                  className={`w-8 h-8 rounded-full border-2 ${(editingGroup?.color === color) ? 'border-black' : 'border-transparent'
-                    }`}
-                  style={{ backgroundColor: color }}
-                />
-              ))}
-            </div>
-            <div className="flex-1 overflow-y-auto mb-4 border rounded">
-              {phoneNumbers.map((num) => (
-                <label
-                  key={num}
-                  className="flex items-center space-x-2 p-2 hover:bg-gray-50 cursor-pointer"
-                >
-                  <input
-                    type="checkbox"
-                    checked={selectedNumbersForGroup.includes(num)}
-                    onChange={(e) => {
-                      if (e.target.checked) {
-                        setSelectedNumbersForGroup([...selectedNumbersForGroup, num]);
-                      } else {
-                        setSelectedNumbersForGroup(selectedNumbersForGroup.filter(n => n !== num));
-                      }
-                    }}
-                    className="accent-[#075e54]"
-                  />
-                  <span className="text-sm">{num}</span>
-                </label>
-              ))}
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-end p-4 z-50">
+          <div ref={groupModalRef} className="bg-white p-4 rounded-lg w-80 shadow-lg">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="font-semibold text-lg">
+                {editingGroup ? "Edit Group" : "New Group"}
+              </h3>
+              <button
                 onClick={() => {
                   setIsGroupModalOpen(false);
                   setEditingGroup(null);
                   setNewGroupName("");
                   setSelectedNumbersForGroup([]);
                 }}
-                variant="outline"
+                className="text-gray-500 hover:text-gray-700"
               >
-                Cancel
-              </Button>
-              <Button
-                onClick={createOrUpdateGroup}
-                className="bg-[#075e54] text-white hover:bg-[#054d43]"
-                disabled={!newGroupName || selectedNumbersForGroup.length === 0}
-              >
-                {editingGroup ? "Save Changes" : "Create Group"}
-              </Button>
+                <X size={20} />
+              </button>
             </div>
+
+            <input
+              type="text"
+              placeholder="Group name"
+              value={newGroupName}
+              onChange={(e) => setNewGroupName(e.target.value)}
+              className="w-full mb-4 p-2 border rounded focus:outline-none focus:ring-2 focus:ring-[#075e54]"
+            />
+
+            <div className="mb-4">
+              <div className="flex gap-2 mb-2">
+                <input
+                  type="text"
+                  placeholder="Add number"
+                  value={newNumberInput}
+                  onChange={(e) => setNewNumberInput(e.target.value)}
+                  className="flex-1 p-2 border rounded focus:outline-none focus:ring-2 focus:ring-[#075e54]"
+                  onKeyPress={(e) => e.key === 'Enter' && addNumberToGroup()}
+                />
+                <Button
+                  onClick={addNumberToGroup}
+                  className="bg-[#075e54] text-white hover:bg-[#054d43]"
+                  disabled={!newNumberInput.trim()}
+                >
+                  Add
+                </Button>
+              </div>
+
+              <div className="max-h-40 overflow-y-auto">
+                {selectedNumbersForGroup.map((number) => (
+                  <div key={number} className="flex items-center justify-between p-2 hover:bg-gray-50 rounded">
+                    <span className="text-sm">{number}</span>
+                    <button
+                      onClick={() => removeNumberFromGroup(number)}
+                      className="text-red-500 hover:text-red-700"
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <Button
+              onClick={createOrUpdateGroup}
+              className="w-full bg-[#075e54] text-white hover:bg-[#054d43]"
+              disabled={!newGroupName || selectedNumbersForGroup.length === 0}
+            >
+              {editingGroup ? "Save Changes" : "Create Group"}
+            </Button>
           </div>
         </div>
       )}
@@ -524,10 +520,7 @@ export default function SendMessagePage(): JSX.Element {
       {/* Messages Container */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-[#efeae2]">
         {messages.map((msg, index) => (
-          <div
-            key={index}
-            className={`flex ${msg.isSent ? 'justify-end' : 'justify-start'}`}
-          >
+          <div key={index} className={`flex ${msg.isSent ? 'justify-end' : 'justify-start'}`}>
             <div className={`p-3 rounded-lg max-w-[80%] shadow bg-[#dcf8c6]`}>
               {msg.file && (
                 <div className="mb-2 text-sm text-gray-500 flex items-center">
@@ -548,14 +541,14 @@ export default function SendMessagePage(): JSX.Element {
                   {msg.file.name}
                 </div>
               )}
-              {msg.isSent && (
+              {msg.group && (
                 <div className="text-xs text-gray-500 mb-1">
-                  To: {msg.phone}
+                  Group: {msg.group}
                 </div>
               )}
-              {!msg.isSent && (
+              {!msg.group && msg.isSent && (
                 <div className="text-xs text-gray-500 mb-1">
-                  {msg.phone}
+                  To: {msg.phone}
                 </div>
               )}
               <p className="text-gray-800">{msg.content}</p>
@@ -571,7 +564,6 @@ export default function SendMessagePage(): JSX.Element {
                     minute: '2-digit'
                   })}
                 </span>
-
                 {msg.isSent && (
                   <span className="text-xs text-gray-500">
                     {msg.status === 'read' ? '✓✓' :
@@ -587,7 +579,7 @@ export default function SendMessagePage(): JSX.Element {
 
       {/* Input Area */}
       <div className="bg-white p-4 border-t border-gray-200">
-        <div className="flex items-center gap-2"> {/* Flex container to align form and button */}
+        <div className="flex items-center gap-2">
           <form onSubmit={sendMessage} className="flex gap-2 items-center flex-1">
             <div className="relative flex-1">
               <button
@@ -679,6 +671,14 @@ export default function SendMessagePage(): JSX.Element {
 
 
 
+
+      {/* Status Messages */}
+      {/* {responseMessage && (
+        <div className={`p-2 text-center text-sm ${responseMessage.success ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+          }`}>
+          {responseMessage.message}
+        </div>
+      )} */}
     </div>
   );
 }
