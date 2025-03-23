@@ -333,103 +333,199 @@ export default function SendMessagePage(): JSX.Element {
   };
 
   const sendTemplateMessage = async (template: Template) => {
-    if (!phone) return;
-
-    const formattedComponents = template.components
-      .flatMap(component => {
-        if (component.type === "BODY") {
-          return component.example
-            ? {
-              type: "body",
-              parameters: [{ type: "text", text: component.text }],
-            }
-            : { type: "body" };
-        }
-
-        if (component.type === "BUTTONS") {
-          return component.buttons?.map((button: any, index: number) => {
-            switch (button.type) {
-              case "QUICK_REPLY":
-                return {
-                  type: "button",
-                  sub_type: "quick_reply",
-                  index: index.toString(),
-                  parameters: [{ type: "payload", payload: button.payload ?? "" }],
-                };
-
-              case "url":
-                return {
-                  type: "button",
-                  sub_type: "url",
-                  index: index.toString(),
-                  parameters: [
-                    {
-                      type: "text",
-                      text: button.url,
-                    },
-                  ],
-                };
-
-              case "phone_number":
-                return {
-                  type: "button",
-                  sub_type: "phone_number",
-                  index: index.toString(),
-                  parameters: [{ type: "text", text: button.phone_number ?? "" }],
-                };
-
-              case "FLOW":
-                return {
-                  type: "button",
-                  sub_type: "flow",
-                  index: index.toString(),
-                  parameters: [
-                    {
-                      type: "action",
-                      action: { flow_token: button.flow_token ?? template.name },
-                    },
-                  ],
-                };
-
-              default:
-                return null;
-            }
-          }).filter(Boolean);
-        }
-
-        return null;
-      })
-      .filter(Boolean);
-
-    const requestBody = {
-      name: template.name,
-      language: { code: template.language },
-      components: formattedComponents,
-    };
-
-    console.log("Sending Template:", JSON.stringify(requestBody, null, 2));
+    if (!selectedGroups.length && !phone) return;
 
     try {
-      const res = await fetch("/api/sendMessage", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ template: requestBody }),
+      let numbersToSend: string[] = [];
+      let isGroupMessage = false;
+
+      if (selectedGroups.length > 0) {
+        numbersToSend = selectedGroups.flatMap(group => group.numbers);
+        isGroupMessage = true;
+      } else if (phone) {
+        numbersToSend = [phone];
+      }
+
+      // Format the components of the template
+      const formattedComponents = template.components
+        .flatMap(component => {
+          if (component.type === "HEADER") {
+            const format = component.format?.toUpperCase();
+            let parameter;
+
+            switch (format) {
+              case 'IMAGE':
+                parameter = {
+                  type: "image",
+                  image: {
+                    id: "1139573927949404" // Adjust based on your data structure
+                  }
+                };
+                break;
+              case 'TEXT':
+                parameter = {
+                  type: "text",
+                  text: component.example?.text || component.example || component.text || ""
+                };
+                break;
+              case 'DOCUMENT':
+                parameter = {
+                  type: "document",
+                  document: {
+                    link: component.example?.url || component.example
+                  }
+                };
+                break;
+              case 'VIDEO':
+                parameter = {
+                  type: "video",
+                  video: {
+                    link: component.example?.url || component.example
+                  }
+                };
+                break;
+              default:
+                console.error('Unsupported header format:', format);
+                return null;
+            }
+
+            return {
+              type: "header",
+              parameters: [parameter]
+            };
+          }
+
+          if (component.type === "BODY") {
+            return component.example
+              ? {
+                type: "body",
+                parameters: [{ type: "text", text: component.text }],
+              }
+              : { type: "body" };
+          }
+
+          if (component.type === "BUTTONS") {
+            return component.buttons?.map((button: any, index: number) => {
+              switch (button.type) {
+                case "QUICK_REPLY":
+                  return {
+                    type: "button",
+                    sub_type: "quick_reply",
+                    index: index.toString(),
+                    parameters: [{ type: "payload", payload: button.payload ?? "" }],
+                  };
+
+                case "url":
+                  return {
+                    type: "button",
+                    sub_type: "url",
+                    index: index.toString(),
+                    parameters: [
+                      {
+                        type: "text",
+                        text: button.url,
+                      },
+                    ],
+                  };
+
+                case "phone_number":
+                  return {
+                    type: "button",
+                    sub_type: "phone_number",
+                    index: index.toString(),
+                    parameters: [{ type: "text", text: button.phone_number ?? "" }],
+                  };
+
+                case "FLOW":
+                  return {
+                    type: "button",
+                    sub_type: "flow",
+                    index: index.toString(),
+                    parameters: [
+                      {
+                        type: "action",
+                        action: { flow_token: button.flow_token ?? "unused" },
+                      },
+                    ],
+                  };
+
+                default:
+                  return null;
+              }
+            }).filter(Boolean);
+          }
+
+          return null;
+        })
+        .filter(Boolean);
+
+      const requestBody = {
+        name: template.name,
+        language: { code: template.language },
+        components: formattedComponents,
+      };
+
+      // Create a single message for group or individual
+      const newMessage: Message = {
+        content: `Template: ${template.name}`,
+        isSent: true,
+        timestamp: new Date(),
+        status: 'sent',
+        file: null,
+        phone: isGroupMessage ? undefined : phone,
+        group: isGroupMessage ? selectedGroups.map(g => g.name).join(', ') : undefined,
+        recipients: numbersToSend.length,
+      };
+
+      setMessages(prev => [...prev, newMessage]);
+
+      const failedNumbers: string[] = [];
+      const limit = pLimit(10);
+
+      const requests = numbersToSend.map((number) => {
+        return limit(async () => {
+          try {
+            const res = await fetch("/api/sendMessage", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({ phone: number, template: requestBody }),
+            });
+
+            if (!res.ok) failedNumbers.push(number);
+          } catch (error) {
+            failedNumbers.push(number);
+          }
+        });
       });
 
-      const responseData = await res.json();
-      console.log("Response:", responseData);
+      await Promise.allSettled(requests);
 
-      if (res.ok) {
-        alert("Template sent successfully!");
-      } else {
-        alert(`Error: ${responseData.error || "Failed to send template"}`);
-      }
+      // Update message status
+      setMessages(prev => prev.map(msg =>
+        msg === newMessage ? {
+          ...msg,
+          status: failedNumbers.length === 0 ? 'delivered' : 'sent',
+          recipients: numbersToSend.length - failedNumbers.length,
+        } : msg
+      ));
+
+      setResponseMessage({
+        success: true,
+        message: `Template sent to ${numbersToSend.length - failedNumbers.length} recipients. Failed: ${failedNumbers.length}`,
+      });
+
     } catch (error) {
       console.error("Error sending template:", error);
-      alert("Error sending template.");
+      setResponseMessage({
+        success: false,
+        message: "Failed to send template.",
+      });
     }
+
+    setSelectedGroups([]);
+    setPhone("");
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {

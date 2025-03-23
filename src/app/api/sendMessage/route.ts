@@ -181,7 +181,7 @@ import { NextResponse } from "next/server";
 
 export async function POST(req: Request) {
     try {
-        const {template} = await req.json();
+        const {phone, template} = await req.json();
 
         const token = process.env.NEXT_PUBLIC_WHATSAPP_API_TOKEN;
         const phoneNumberId = process.env.NEXT_PUBLIC_WHATSAPP_PHONE_NUMBER_ID;
@@ -189,7 +189,7 @@ export async function POST(req: Request) {
         const requestBody = {
             messaging_product: "whatsapp",
             recipient_type: "individual",
-            to: "919370435262",
+            to: phone,
             type: "template",
             template
         };
