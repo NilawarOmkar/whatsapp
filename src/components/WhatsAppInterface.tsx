@@ -13,12 +13,32 @@ interface Message {
   file?: File | null;
   phone?: string;
   group?: string;
+  isBroadcast?: boolean;
+  recipients?: number;
 }
 
 interface Group {
   id: string;
   name: string;
   numbers: string[];
+}
+
+interface Template {
+  name: string;
+  category: string;
+  status: string;
+  language: string;
+  components: any[];
+  id: string;
+}
+
+interface Component {
+  type: string;
+  format?: string;
+  text?: string;
+  example?: any;
+  buttons?: any[];
+  // Add more fields based on your actual component structure
 }
 
 export default function SendMessagePage(): JSX.Element {
@@ -49,6 +69,11 @@ export default function SendMessagePage(): JSX.Element {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const groupMenuRef = useRef<HTMLDivElement>(null);
   const groupModalRef = useRef<HTMLDivElement>(null);
+
+  const [showTemplates, setShowTemplates] = useState(false);
+  const [templates, setTemplates] = useState<Template[]>([]);
+  const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
+  const [isSendingTemplate, setIsSendingTemplate] = useState(false);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -157,29 +182,33 @@ export default function SendMessagePage(): JSX.Element {
 
     try {
       let numbersToSend: string[] = [];
+      let isGroupMessage = false;
 
       if (selectedGroups.length > 0) {
         numbersToSend = selectedGroups.flatMap(group => group.numbers);
+        isGroupMessage = true;
       } else if (phone) {
         numbersToSend = [phone];
       }
+
+      // Create a single message for group or individual
+      const newMessage: Message = {
+        content: message,
+        isSent: true,
+        timestamp: new Date(),
+        status: 'sent',
+        file,
+        phone: isGroupMessage ? undefined : phone,
+        group: isGroupMessage ? selectedGroups.map(g => g.name).join(', ') : undefined,
+        recipients: numbersToSend.length
+      };
+
+      setMessages(prev => [...prev, newMessage]);
 
       const failedNumbers: string[] = [];
       const limit = pLimit(10);
 
       const requests = numbersToSend.map((number) => {
-        const newMessage: Message = {
-          content: message,
-          isSent: true,
-          timestamp: new Date(),
-          status: 'sent',
-          file,
-          phone: number,
-          group: selectedGroups.length > 0 ? selectedGroups.map(g => g.name).join(', ') : undefined
-        };
-
-        setMessages(prev => [...prev, newMessage]);
-
         const formData = new FormData();
         formData.append("phone", number);
         formData.append("message", message);
@@ -192,10 +221,6 @@ export default function SendMessagePage(): JSX.Element {
               body: formData,
             });
 
-            setMessages(prev => prev.map(msg =>
-              msg === newMessage ? { ...msg, status: res.ok ? 'delivered' : 'sent' } : msg
-            ));
-
             if (!res.ok) failedNumbers.push(number);
           } catch (error) {
             failedNumbers.push(number);
@@ -204,6 +229,15 @@ export default function SendMessagePage(): JSX.Element {
       });
 
       await Promise.allSettled(requests);
+
+      // Update message status
+      setMessages(prev => prev.map(msg =>
+        msg === newMessage ? {
+          ...msg,
+          status: failedNumbers.length === 0 ? 'delivered' : 'sent',
+          recipients: numbersToSend.length - failedNumbers.length
+        } : msg
+      ));
 
       setResponseMessage({
         success: true,
@@ -217,6 +251,7 @@ export default function SendMessagePage(): JSX.Element {
       });
     }
 
+
     setMessage("");
     setFile(null);
     setSelectedGroups([]);
@@ -227,48 +262,53 @@ export default function SendMessagePage(): JSX.Element {
     if (isBroadcasting) return;
     setIsBroadcasting(true);
 
+    // Create single broadcast message
+    const newMessage: Message = {
+      content: message,
+      isSent: true,
+      timestamp: new Date(),
+      status: 'sent',
+      file: null,
+      isBroadcast: true,
+      recipients: phoneNumbers.length
+    };
+    setMessages(prev => [...prev, newMessage]);
+
     const limit = pLimit(10);
+    const failedNumbers: string[] = [];
 
     const requests = phoneNumbers.map((number) => {
-      const newMessage: Message = {
-        content: `Broadcast message to ${number}`,
-        isSent: true,
-        timestamp: new Date(),
-        status: 'sent',
-        file: null
-      };
-      setMessages(prev => [...prev, newMessage]);
-
       const formData = new FormData();
       formData.append("phone", number);
       formData.append("message", message);
       if (file) formData.append("file", file);
 
       return limit(async () => {
-        const response = await fetch("/api/send-message", { method: "POST", body: formData });
-
-        setMessages(prev => prev.map(msg =>
-          msg === newMessage ? { ...msg, status: response.ok ? 'delivered' : 'sent' } : msg
-        ));
-
-        return response;
+        try {
+          const response = await fetch("/api/send-message", { method: "POST", body: formData });
+          if (!response.ok) failedNumbers.push(number);
+        } catch (error) {
+          failedNumbers.push(number);
+        }
       });
     });
 
-    const results = await Promise.allSettled(requests);
+    await Promise.allSettled(requests);
 
-    const failedNumbers = results
-      .map((result, index) => (result.status === "rejected" ? phoneNumbers[index] : null))
-      .filter(Boolean);
+    // Update broadcast message status
+    setMessages(prev => prev.map(msg =>
+      msg === newMessage ? {
+        ...msg,
+        status: failedNumbers.length === 0 ? 'delivered' : 'sent',
+        recipients: phoneNumbers.length - failedNumbers.length
+      } : msg
+    ));
 
     setResponseMessage({
       success: true,
       message: `Broadcasted to ${phoneNumbers.length - failedNumbers.length} contacts. Failed: ${failedNumbers.length}`
     });
 
-    if (failedNumbers.length > 0) {
-      console.warn("Failed to send messages to:", failedNumbers);
-    }
     setIsBroadcasting(false);
   };
 
@@ -292,47 +332,103 @@ export default function SendMessagePage(): JSX.Element {
     }
   };
 
-  const sendTemplateMessage = async () => {
+  const sendTemplateMessage = async (template: Template) => {
     if (!phone) return;
 
-    const newMessage: Message = {
-      content: `Registration Form`,
-      isSent: true,
-      timestamp: new Date(),
-      status: 'sent',
-      file: null
+    const formattedComponents = template.components
+      .flatMap(component => {
+        if (component.type === "BODY") {
+          return component.example
+            ? {
+              type: "body",
+              parameters: [{ type: "text", text: component.text }],
+            }
+            : { type: "body" };
+        }
+
+        if (component.type === "BUTTONS") {
+          return component.buttons?.map((button: any, index: number) => {
+            switch (button.type) {
+              case "QUICK_REPLY":
+                return {
+                  type: "button",
+                  sub_type: "quick_reply",
+                  index: index.toString(),
+                  parameters: [{ type: "payload", payload: button.payload ?? "" }],
+                };
+
+              case "url":
+                return {
+                  type: "button",
+                  sub_type: "url",
+                  index: index.toString(),
+                  parameters: [
+                    {
+                      type: "text",
+                      text: button.url,
+                    },
+                  ],
+                };
+
+              case "phone_number":
+                return {
+                  type: "button",
+                  sub_type: "phone_number",
+                  index: index.toString(),
+                  parameters: [{ type: "text", text: button.phone_number ?? "" }],
+                };
+
+              case "FLOW":
+                return {
+                  type: "button",
+                  sub_type: "flow",
+                  index: index.toString(),
+                  parameters: [
+                    {
+                      type: "action",
+                      action: { flow_token: button.flow_token ?? template.name },
+                    },
+                  ],
+                };
+
+              default:
+                return null;
+            }
+          }).filter(Boolean);
+        }
+
+        return null;
+      })
+      .filter(Boolean);
+
+    const requestBody = {
+      name: template.name,
+      language: { code: template.language },
+      components: formattedComponents,
     };
-    setMessages(prev => [...prev, newMessage]);
 
-    const formData = new FormData();
-    formData.append("phone", phone);
-
-    console.log(`Sending to: ${phone}`);
+    console.log("Sending Template:", JSON.stringify(requestBody, null, 2));
 
     try {
-      const response = await fetch("/api/sendMessage", {
+      const res = await fetch("/api/sendMessage", {
         method: "POST",
-        body: formData,
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ template: requestBody }),
       });
 
-      const result = await response.json();
-      console.log(`Response for ${phone}:`, result);
+      const responseData = await res.json();
+      console.log("Response:", responseData);
 
-      setMessages(prev => prev.map(msg =>
-        msg === newMessage ? { ...msg, status: response.ok ? 'delivered' : 'sent' } : msg
-      ));
-
-      setResponseMessage(response.ok ?
-        { success: true, message: `Template message sent to ${phone}` } :
-        { success: false, message: result.error || "Failed to send template message" }
-      );
-
+      if (res.ok) {
+        alert("Template sent successfully!");
+      } else {
+        alert(`Error: ${responseData.error || "Failed to send template"}`);
+      }
     } catch (error) {
-      console.error(`Error sending to ${phone}:`, error);
-      setResponseMessage({
-        success: false,
-        message: "Failed to connect to server"
-      });
+      console.error("Error sending template:", error);
+      alert("Error sending template.");
     }
   };
 
@@ -543,10 +639,15 @@ export default function SendMessagePage(): JSX.Element {
               )}
               {msg.group && (
                 <div className="text-xs text-gray-500 mb-1">
-                  Group: {msg.group}
+                  Group: {msg.group} ({msg.recipients} recipients)
                 </div>
               )}
-              {!msg.group && msg.isSent && (
+              {msg.isBroadcast && (
+                <div className="text-xs text-gray-500 mb-1">
+                  Broadcast to {msg.recipients} recipients
+                </div>
+              )}
+              {!msg.group && !msg.isBroadcast && msg.isSent && (
                 <div className="text-xs text-gray-500 mb-1">
                   To: {msg.phone}
                 </div>
@@ -653,7 +754,19 @@ export default function SendMessagePage(): JSX.Element {
           </form>
 
           {/* Interactive Message Button (Now outside the form) */}
-          <Button onClick={sendTemplateMessage} className="bg-[#075e54] text-white p-2 rounded-full w-10 h-10 flex items-center justify-center hover:bg-[#054d43]">
+          <Button
+            onClick={async () => {
+              try {
+                const response = await fetch('/api/templates');
+                const data = await response.json();
+                setTemplates(data.data);
+                setShowTemplates(true);
+              } catch (error) {
+                console.error('Error fetching templates:', error);
+              }
+            }}
+            className="bg-[#075e54] text-white p-2 rounded-full w-10 h-10 flex items-center justify-center hover:bg-[#054d43]"
+          >
             <MessageSquareMore />
           </Button>
         </div>
@@ -669,6 +782,70 @@ export default function SendMessagePage(): JSX.Element {
 
       </div>
 
+      {/* Template Selection Modal */}
+      {showTemplates && (
+        <div className="fixed bottom-16 right-4 z-50 w-72 bg-white rounded-lg shadow-xl border border-gray-200 animate-slide-up">
+          <div className="p-3 border-b border-gray-200 flex items-center justify-between">
+            <h3 className="font-semibold text-gray-700">Choose a Template</h3>
+            <button
+              onClick={() => setShowTemplates(false)}
+              className="text-gray-400 hover:text-gray-600"
+            >
+              <X size={18} />
+            </button>
+          </div>
+
+          <div className="max-h-[50vh] overflow-y-auto p-2">
+            {templates.map((template) => (
+              <div
+                key={template.name}
+                onClick={() => setSelectedTemplate(template)}
+                className={`p-2 mb-1 rounded-md cursor-pointer transition-colors ${selectedTemplate?.name === template.name
+                  ? 'bg-[#075e54] text-white'
+                  : 'hover:bg-gray-50'
+                  }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">{template.name}</span>
+                  <span className="text-xs px-2 py-1 bg-gray-100 rounded-full text-gray-600">
+                    {template.category}
+                  </span>
+                </div>
+                {template.components.find((c: any) => c.type === "BODY") && (
+                  <p className="text-xs mt-1 text-gray-500 line-clamp-2">
+                    {template.components.find((c: any) => c.type === "BODY")?.text}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+
+          <div className="p-2 border-t border-gray-200 flex gap-2">
+            <Button
+              onClick={() => {
+                setShowTemplates(false);
+                setSelectedTemplate(null);
+              }}
+              variant="outline"
+              className="flex-1 text-sm h-8"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (selectedTemplate) {
+                  sendTemplateMessage(selectedTemplate);
+                  setShowTemplates(false);
+                }
+              }}
+              className="flex-1 bg-[#075e54] hover:bg-[#054d43] text-sm h-8"
+              disabled={!selectedTemplate}
+            >
+              Send Template
+            </Button>
+          </div>
+        </div>
+      )}
 
 
 

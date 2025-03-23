@@ -8,7 +8,7 @@ const ACCESS_TOKEN = process.env.NEXT_PUBLIC_WHATSAPP_API_TOKEN;
 export async function GET() {
     try {
         const response = await fetch(
-            `${BASE_URL}/${WABA_ID}/message_templates?fields=name,status,category,language,components`,
+            `${BASE_URL}/${WABA_ID}/message_templates`,
             {
                 method: "GET",
                 headers: {
@@ -17,6 +17,12 @@ export async function GET() {
             }
         );
         const data = await response.json();
+        // if (data.data) {
+        //     data.data.forEach((template: any) => {
+        //         console.log(`Template: ${template.name}`);
+        //         console.log("Components:", JSON.stringify(template.components, null, 2));
+        //     });
+        // }
         return NextResponse.json(data);
     } catch (error) {
         return NextResponse.json(
