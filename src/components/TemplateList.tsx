@@ -32,19 +32,19 @@ export default function TemplateList() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [templatesRes, usersRes] = await Promise.all([
+        const [templatesRes] = await Promise.all([
           axios.get('/api/templates'),
-          fetch('/api/proxy')
+          // fetch('/api/proxy')
         ]);
 
-        if (!usersRes.ok) throw new Error("Failed to fetch users");
+        // if (!usersRes.ok) throw new Error("Failed to fetch users");
 
         setTemplates(templatesRes.data?.data || []);
-        const usersData = await usersRes.json();
-        setUsers(usersData.map((user: User) => ({
-          ...user,
-          phone_number: String(user.phone_number)
-        })));
+        // const usersData = await usersRes.json();
+        // setUsers(usersData.map((user: User) => ({
+        //   ...user,
+        //   phone_number: String(user.phone_number)
+        // })));
       } catch (error) {
         console.error("Error fetching data:", error);
       } finally {

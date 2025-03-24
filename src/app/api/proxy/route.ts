@@ -1,6 +1,6 @@
 export async function GET() {
     try {
-        const response = await fetch("http://66.228.61.181:3000/users");
+        const response = await fetch("http://localhost:3001/users");
 
         if (!response.ok) {
             throw new Error("Failed to fetch users");

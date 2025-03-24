@@ -34,6 +34,7 @@ type TemplateState = {
   name: string;
   language: string;
   header: { text: string; variables: string[] };
+  headerType: 'TEXT' | 'IMAGE' | 'VIDEO' | 'DOCUMENT' | 'LOCATION';
   body: { text: string; variables: string[] };
   footer: string;
   buttons: Button[];
@@ -46,6 +47,7 @@ export default function TemplateCreator() {
     name: '',
     language: 'en_US',
     header: { text: '', variables: [] as string[] },
+    headerType: 'TEXT',
     body: { text: '', variables: [] as string[] },
     footer: '',
     buttons: []
@@ -158,8 +160,12 @@ export default function TemplateCreator() {
     if (template.header.text) {
       const headerComponent: any = {
         type: 'HEADER',
-        format: 'TEXT',
-        text: template.header.text
+        format: template.headerType,
+        ...(template.headerType === 'TEXT' && { text: template.header.text }),
+        ...(template.headerType === 'IMAGE' && { image_url: template.header.text }),
+        ...(template.headerType === 'VIDEO' && { video_url: template.header.text }),
+        ...(template.headerType === 'DOCUMENT' && { document_url: template.header.text }),
+        ...(template.headerType === 'LOCATION' && { location: template.header.text })
       };
 
       if (template.header.variables.length > 0) {
@@ -291,6 +297,57 @@ export default function TemplateCreator() {
     }
   }
 
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+  
+    try {
+      // Display the file name in the header text
+      setTemplate(prev => ({
+        ...prev,
+        header: { ...prev.header, text: file.name }
+      }));
+  
+      // Start the resumable upload
+      const uploadResponse = await fetch('/api/upload/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileName: file.name, fileType: file.type })
+      });
+  
+      if (!uploadResponse.ok) {
+        throw new Error('Failed to start upload');
+      }
+  
+      const { uploadUrl, fileId } = await uploadResponse.json();
+  
+      // Upload the file in chunks
+      const chunkSize = 5 * 1024 * 1024; // 5MB
+      let start = 0;
+  
+      while (start < file.size) {
+        const chunk = file.slice(start, start + chunkSize);
+        await fetch(uploadUrl, {
+          method: 'PUT',
+          headers: { 'Content-Range': `bytes ${start}-${start + chunk.size - 1}/${file.size}` },
+          body: chunk
+        });
+        start += chunkSize;
+      }
+  
+      // Update the header text with the file ID
+      setTemplate(prev => ({
+        ...prev,
+        header: { ...prev.header, text: fileId }
+      }));
+  
+      alert('File uploaded successfully!');
+    } catch (error) {
+      console.error('File upload failed:', error);
+      alert('Failed to upload file. Please try again.');
+    }
+  };
+
   return (
     <div className="flex h-screen bg-gray-50">
       {/* Editor Panel */}
@@ -341,38 +398,68 @@ export default function TemplateCreator() {
                 <span className="text-xs text-gray-500">{template.header.text.length}/60</span>
               </div>
 
-              <Input
-                value={template.header.text}
-                onChange={e => setTemplate(p => ({ ...p, header: { ...p.header, text: e.target.value } }))}
-                placeholder="Enter header text"
-                maxLength={60}
-              />
+              {/* Header Type Selector */}
+              <div className="space-y-2">
+                <Label>Header Type</Label>
+                <Select
+                  value={template.headerType}
+                  onValueChange={v => setTemplate(p => ({ ...p, headerType: v as TemplateState['headerType'] }))}
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="TEXT">Text</SelectItem>
+                    <SelectItem value="IMAGE">Image</SelectItem>
+                    <SelectItem value="VIDEO">Video</SelectItem>
+                    <SelectItem value="DOCUMENT">Document</SelectItem>
+                    <SelectItem value="LOCATION">Location</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
 
-              {template.header.variables.length > 0 && (
+              {/* Conditionally Render Header Input */}
+              {template.headerType === 'TEXT' && (
+                <Input
+                  value={template.header.text}
+                  onChange={e => setTemplate(p => ({ ...p, header: { ...p.header, text: e.target.value } }))}
+                  placeholder="Enter header text"
+                  maxLength={60}
+                />
+              )}
+
+              {(template.headerType === 'IMAGE' || template.headerType === 'VIDEO' || template.headerType === 'DOCUMENT') && (
                 <div className="space-y-2">
-                  {template.header.variables.map((varName, index) => (
-                    <div key={index} className="flex items-center gap-2">
-                      <Input
-                        placeholder={`Sample value for {{${varName}}}`}
-                        value={varName}
-                        onChange={e => {
-                          const newVars = [...template.header.variables]
-                          newVars[index] = e.target.value
-                          setTemplate(p => ({
-                            ...p,
-                            header: {
-                              ...p.header,
-                              variables: newVars,
-                              text: p.header.text.replace(new RegExp(`{{${varName}}}`, 'g'), `{{${e.target.value}}}`)
-                            }
-                          }))
-                        }}
+                  <Label>Upload {template.headerType}</Label>
+                  <div className="flex items-center gap-4">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="relative overflow-hidden"
+                      onClick={() => document.getElementById('file-input')?.click()}
+                    >
+                      Select File
+                      <input
+                        id="file-input"
+                        type="file"
+                        accept={template.headerType === 'IMAGE' ? 'image/*' : template.headerType === 'VIDEO' ? 'video/*' : '*'}
+                        className="absolute inset-0 opacity-0 cursor-pointer"
+                        onChange={handleFileUpload}
                       />
-                      <Button variant="ghost" size="sm" onClick={() => handleRemoveVariable('header', index)}>
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ))}
+                    </Button>
+                    {template.header.text && (
+                      <span className="text-sm text-gray-600 truncate">{template.header.text}</span>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {template.headerType === 'LOCATION' && (
+                <div className="space-y-1">
+                  <Label>Location</Label>
+                  <Input
+                    value={template.header.text}
+                    onChange={e => setTemplate(p => ({ ...p, header: { ...p.header, text: e.target.value } }))}
+                    placeholder="Enter location details"
+                  />
                 </div>
               )}
             </CardContent>
@@ -561,6 +648,28 @@ export default function TemplateCreator() {
                   })}
                 </p>
               </div>
+            )}
+
+            {template.headerType === 'IMAGE' && template.header.text && (
+              <img src={`/api/files/${template.header.text}`} alt="Header Image" className="rounded-lg w-full" />
+            )}
+
+            {template.headerType === 'VIDEO' && template.header.text && (
+              <video controls className="rounded-lg w-full">
+                <source src={`/api/files/${template.header.text}`} type="video/mp4" />
+                Your browser does not support the video tag.
+              </video>
+            )}
+
+            {template.headerType === 'DOCUMENT' && template.header.text && (
+              <a
+                href={`/api/files/${template.header.text}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-600 underline"
+              >
+                View Document
+              </a>
             )}
 
             <div className="bg-white p-3 rounded-lg">

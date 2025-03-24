@@ -75,11 +75,11 @@ export default function SendMessagePage(): JSX.Element {
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
   const [isSendingTemplate, setIsSendingTemplate] = useState(false);
 
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    const savedGroups = localStorage.getItem('whatsapp-groups');
-    if (savedGroups) setGroups(JSON.parse(savedGroups));
-  }, []);
+  // useEffect(() => {
+  //   messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  //   const savedGroups = localStorage.getItem('whatsapp-groups');
+  //   if (savedGroups) setGroups(JSON.parse(savedGroups));
+  // }, []);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -129,27 +129,50 @@ export default function SendMessagePage(): JSX.Element {
     fetchData();
   }, []);
 
-  const createOrUpdateGroup = () => {
+  useEffect(() => {
+    async function fetchGroups() {
+      try {
+        const response = await fetch("http://localhost:3001/groups/");
+        if (!response.ok) throw new Error("Failed to fetch groups");
+        const data: Group[] = await response.json();
+        setGroups(data);
+      } catch (error) {
+        console.error("Error fetching groups:", error);
+      }
+    }
+    fetchGroups();
+  }, []);
+
+  const createOrUpdateGroup = async () => {
     if (!newGroupName || selectedNumbersForGroup.length === 0) return;
-
-    const newGroup: Group = {
-      id: editingGroup ? editingGroup.id : Date.now().toString(),
+  
+    const newGroup = {
       name: newGroupName,
-      numbers: [...new Set(selectedNumbersForGroup)]
+      numbers: [...new Set(selectedNumbersForGroup)],
     };
-
-    setGroups(prev => {
-      const updatedGroups = editingGroup
-        ? prev.map(g => g.id === editingGroup.id ? newGroup : g)
-        : [...prev, newGroup];
-      localStorage.setItem('whatsapp-groups', JSON.stringify(updatedGroups));
-      return updatedGroups;
-    });
-
-    setNewGroupName("");
-    setSelectedNumbersForGroup([]);
-    setEditingGroup(null);
-    setIsGroupModalOpen(false);
+  
+    try {
+      const response = await fetch(`http://localhost:3001/groups/${editingGroup ? editingGroup.id : ""}`, {
+        method: editingGroup ? "PUT" : "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(newGroup),
+      });
+  
+      if (!response.ok) throw new Error("Failed to save group");
+  
+      // Refetch groups after successful creation or update
+      const updatedGroups = await fetch("http://localhost:3001/groups/").then((res) => res.json());
+      setGroups(updatedGroups);
+  
+      setNewGroupName("");
+      setSelectedNumbersForGroup([]);
+      setEditingGroup(null);
+      setIsGroupModalOpen(false);
+    } catch (error) {
+      console.error("Error saving group:", error);
+    }
   };
 
   // Add number to group
@@ -166,14 +189,22 @@ export default function SendMessagePage(): JSX.Element {
     setSelectedNumbersForGroup(prev => prev.filter(n => n !== number));
   };
 
+  // Delete a group
+  const deleteGroup = async (groupId: string) => {
+    try {
+      const response = await fetch(`http://localhost:3001/groups/${groupId}`, {
+        method: "DELETE",
+      });
 
-  const deleteGroup = (groupId: string) => {
-    setGroups(prev => {
-      const updatedGroups = prev.filter(g => g.id !== groupId);
-      localStorage.setItem('whatsapp-groups', JSON.stringify(updatedGroups));
-      return updatedGroups;
-    });
-    setSelectedGroups(prev => prev.filter(g => g.id !== groupId));
+      if (!response.ok) throw new Error("Failed to delete group");
+
+      // Refetch groups after successful deletion
+      const updatedGroups = await fetch("http://localhost:3001/groups/").then((res) => res.json());
+      setGroups(updatedGroups);
+      setSelectedGroups((prev) => prev.filter((g) => g.id !== groupId));
+    } catch (error) {
+      console.error("Error deleting group:", error);
+    }
   };
 
   const sendMessage = async (e: React.FormEvent<HTMLFormElement>) => {

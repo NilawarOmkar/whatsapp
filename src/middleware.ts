@@ -2,18 +2,18 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 export function middleware(req: NextRequest) {
-    const isAuthenticated = req.cookies.get("isAuthenticated")?.value === "true";
-    const publicPaths = ["/", "/register"];
+    // const isAuthenticated = req.cookies.get("isAuthenticated")?.value === "true";
+    // const publicPaths = ["/", "/register"];
 
-    if (publicPaths.includes(req.nextUrl.pathname)) {
-        return NextResponse.next();
-    }
+    // if (publicPaths.includes(req.nextUrl.pathname)) {
+    //     return NextResponse.next();
+    // }
 
-    if (!isAuthenticated) {
-        return NextResponse.redirect(new URL("/", req.url));
-    }
+    // if (!isAuthenticated) {
+    //     return NextResponse.redirect(new URL("/", req.url));
+    // }
 
-    return NextResponse.next();
+    // return NextResponse.next();
 }
 
 export const config = {
