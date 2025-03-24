@@ -38,7 +38,6 @@ interface Component {
   text?: string;
   example?: any;
   buttons?: any[];
-  // Add more fields based on your actual component structure
 }
 
 export default function SendMessagePage(): JSX.Element {
@@ -74,12 +73,6 @@ export default function SendMessagePage(): JSX.Element {
   const [templates, setTemplates] = useState<Template[]>([]);
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
   const [isSendingTemplate, setIsSendingTemplate] = useState(false);
-
-  // useEffect(() => {
-  //   messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  //   const savedGroups = localStorage.getItem('whatsapp-groups');
-  //   if (savedGroups) setGroups(JSON.parse(savedGroups));
-  // }, []);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -146,9 +139,13 @@ export default function SendMessagePage(): JSX.Element {
   const createOrUpdateGroup = async () => {
     if (!newGroupName || selectedNumbersForGroup.length === 0) return;
   
+    const updatedNumbers = editingGroup
+      ? [...new Set([...editingGroup.numbers, ...selectedNumbersForGroup])]
+      : [...new Set(selectedNumbersForGroup)];
+  
     const newGroup = {
       name: newGroupName,
-      numbers: [...new Set(selectedNumbersForGroup)],
+      numbers: updatedNumbers,
     };
   
     try {
@@ -162,7 +159,6 @@ export default function SendMessagePage(): JSX.Element {
   
       if (!response.ok) throw new Error("Failed to save group");
   
-      // Refetch groups after successful creation or update
       const updatedGroups = await fetch("http://localhost:3001/groups/").then((res) => res.json());
       setGroups(updatedGroups);
   
@@ -184,9 +180,8 @@ export default function SendMessagePage(): JSX.Element {
     }
   };
 
-  // Remove number from group
   const removeNumberFromGroup = (number: string) => {
-    setSelectedNumbersForGroup(prev => prev.filter(n => n !== number));
+    createOrUpdateGroup();
   };
 
   // Delete a group
@@ -222,7 +217,6 @@ export default function SendMessagePage(): JSX.Element {
         numbersToSend = [phone];
       }
 
-      // Create a single message for group or individual
       const newMessage: Message = {
         content: message,
         isSent: true,
@@ -643,7 +637,7 @@ export default function SendMessagePage(): JSX.Element {
                         onClick={() => {
                           setEditingGroup(group);
                           setNewGroupName(group.name);
-                          setNewGroupNumbers(group.numbers.join('\n'));
+                          setSelectedNumbersForGroup(group.numbers);
                           setIsGroupModalOpen(true);
                           setIsGroupMenuOpen(false);
                         }}
@@ -714,6 +708,7 @@ export default function SendMessagePage(): JSX.Element {
                 </Button>
               </div>
 
+              {/* Show current numbers in the group */}
               <div className="max-h-40 overflow-y-auto">
                 {selectedNumbersForGroup.map((number) => (
                   <div key={number} className="flex items-center justify-between p-2 hover:bg-gray-50 rounded">
