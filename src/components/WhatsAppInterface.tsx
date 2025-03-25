@@ -181,7 +181,8 @@ export default function SendMessagePage(): JSX.Element {
   };
 
   const removeNumberFromGroup = (number: string) => {
-    createOrUpdateGroup();
+    setSelectedNumbersForGroup(prev => prev.filter(n => n !== number));
+    setNewNumberInput("");
   };
 
   // Delete a group
@@ -193,7 +194,6 @@ export default function SendMessagePage(): JSX.Element {
 
       if (!response.ok) throw new Error("Failed to delete group");
 
-      // Refetch groups after successful deletion
       const updatedGroups = await fetch("http://localhost:3001/groups/").then((res) => res.json());
       setGroups(updatedGroups);
       setSelectedGroups((prev) => prev.filter((g) => g.id !== groupId));
@@ -383,7 +383,7 @@ export default function SendMessagePage(): JSX.Element {
                 parameter = {
                   type: "image",
                   image: {
-                    id: "1139573927949404" // Adjust based on your data structure
+                    id: component.example?.id || component.example
                   }
                 };
                 break;
@@ -469,7 +469,7 @@ export default function SendMessagePage(): JSX.Element {
                     parameters: [
                       {
                         type: "action",
-                        action: { flow_token: button.flow_token ?? "unused" },
+                        action: { flow_token: template.name },
                       },
                     ],
                   };
@@ -772,6 +772,11 @@ export default function SendMessagePage(): JSX.Element {
               {!msg.group && !msg.isBroadcast && msg.isSent && (
                 <div className="text-xs text-gray-500 mb-1">
                   To: {msg.phone}
+                </div>
+              )}
+              {!msg.isSent && msg.phone && (
+                <div className="text-xs text-gray-500 mb-1">
+                  From: {msg.phone}
                 </div>
               )}
               <p className="text-gray-800">{msg.content}</p>

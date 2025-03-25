@@ -162,10 +162,21 @@ export default function TemplateCreator() {
         type: 'HEADER',
         format: template.headerType,
         ...(template.headerType === 'TEXT' && { text: template.header.text }),
-        ...(template.headerType === 'IMAGE' && { image_url: template.header.text }),
-        ...(template.headerType === 'VIDEO' && { video_url: template.header.text }),
-        ...(template.headerType === 'DOCUMENT' && { document_url: template.header.text }),
-        ...(template.headerType === 'LOCATION' && { location: template.header.text })
+        ...(template.headerType === 'IMAGE' && {
+          example: {
+            header_handle: [template.header.text]
+          }
+        }),
+        ...(template.headerType === 'VIDEO' && {
+          example: {
+            header_handle: [template.header.text]
+          }
+        }),
+        ...(template.headerType === 'DOCUMENT' && {
+          example: {
+            header_handle: [template.header.text]
+          }
+        })
       };
 
       if (template.header.variables.length > 0) {
@@ -300,48 +311,29 @@ export default function TemplateCreator() {
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
-  
+
     try {
-      // Display the file name in the header text
-      setTemplate(prev => ({
-        ...prev,
-        header: { ...prev.header, text: file.name }
-      }));
-  
-      // Start the resumable upload
-      const uploadResponse = await fetch('/api/upload/start', {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const uploadResponse = await fetch('/api/upload/', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fileName: file.name, fileType: file.type })
+        body: formData,
       });
-  
+
       if (!uploadResponse.ok) {
-        throw new Error('Failed to start upload');
+        throw new Error('Failed to upload file');
       }
-  
-      const { uploadUrl, fileId } = await uploadResponse.json();
-  
-      // Upload the file in chunks
-      const chunkSize = 5 * 1024 * 1024; // 5MB
-      let start = 0;
-  
-      while (start < file.size) {
-        const chunk = file.slice(start, start + chunkSize);
-        await fetch(uploadUrl, {
-          method: 'PUT',
-          headers: { 'Content-Range': `bytes ${start}-${start + chunk.size - 1}/${file.size}` },
-          body: chunk
-        });
-        start += chunkSize;
-      }
-  
-      // Update the header text with the file ID
-      setTemplate(prev => ({
-        ...prev,
-        header: { ...prev.header, text: fileId }
-      }));
-  
-      alert('File uploaded successfully!');
+
+      const { fileHandle } = await uploadResponse.json();
+
+    // Update the template header text with the file handle
+    setTemplate(prev => ({
+      ...prev,
+      header: { ...prev.header, text: fileHandle }, // Use the file path or URL
+    }));
+
+      alert(`File uploaded successfully!`);
     } catch (error) {
       console.error('File upload failed:', error);
       alert('Failed to upload file. Please try again.');
@@ -411,7 +403,7 @@ export default function TemplateCreator() {
                     <SelectItem value="IMAGE">Image</SelectItem>
                     <SelectItem value="VIDEO">Video</SelectItem>
                     <SelectItem value="DOCUMENT">Document</SelectItem>
-                    <SelectItem value="LOCATION">Location</SelectItem>
+                    {/* <SelectItem value="LOCATION">Location</SelectItem> */}
                   </SelectContent>
                 </Select>
               </div>
@@ -650,20 +642,25 @@ export default function TemplateCreator() {
               </div>
             )}
 
+            {/* Header Preview */}
             {template.headerType === 'IMAGE' && template.header.text && (
-              <img src={`/api/files/${template.header.text}`} alt="Header Image" className="rounded-lg w-full" />
+              <img
+                src={template.header.text} // Use the file path or URL
+                alt="Header Image"
+                className="rounded-lg w-full"
+              />
             )}
 
             {template.headerType === 'VIDEO' && template.header.text && (
               <video controls className="rounded-lg w-full">
-                <source src={`/api/files/${template.header.text}`} type="video/mp4" />
+                <source src={template.header.text} type="video/mp4" />
                 Your browser does not support the video tag.
               </video>
             )}
 
             {template.headerType === 'DOCUMENT' && template.header.text && (
               <a
-                href={`/api/files/${template.header.text}`}
+                href={template.header.text} // Use the file path or URL
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-blue-600 underline"
