@@ -41,6 +41,7 @@ type TemplateState = {
 };
 
 export default function TemplateCreator() {
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [flows, setFlows] = useState<any[]>([])
   const [template, setTemplate] = useState<TemplateState>({
     category: 'MARKETING',
@@ -311,6 +312,13 @@ export default function TemplateCreator() {
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
 
     try {
       const formData = new FormData();
@@ -327,13 +335,11 @@ export default function TemplateCreator() {
 
       const { fileHandle } = await uploadResponse.json();
 
-    // Update the template header text with the file handle
-    setTemplate(prev => ({
-      ...prev,
-      header: { ...prev.header, text: fileHandle }, // Use the file path or URL
-    }));
+      setTemplate(prev => ({
+        ...prev,
+        header: { ...prev.header, text: fileHandle },
+      }));
 
-      alert(`File uploaded successfully!`);
     } catch (error) {
       console.error('File upload failed:', error);
       alert('Failed to upload file. Please try again.');
@@ -383,16 +389,16 @@ export default function TemplateCreator() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Label className="text-sm font-medium">Header</Label>
-                  <Button variant="outline" size="sm" onClick={() => handleAddVariable('header')}>
+                  {/* <Button variant="outline" size="sm" onClick={() => handleAddVariable('header')}>
                     <Plus className="h-4 w-4 mr-1" /> Add Variable
-                  </Button>
+                  </Button> */}
                 </div>
                 <span className="text-xs text-gray-500">{template.header.text.length}/60</span>
               </div>
 
               {/* Header Type Selector */}
               <div className="space-y-2">
-                <Label>Header Type</Label>
+                {/* <Label>Header Type</Label> */}
                 <Select
                   value={template.headerType}
                   onValueChange={v => setTemplate(p => ({ ...p, headerType: v as TemplateState['headerType'] }))}
@@ -418,9 +424,9 @@ export default function TemplateCreator() {
                 />
               )}
 
-              {(template.headerType === 'IMAGE' || template.headerType === 'VIDEO' || template.headerType === 'DOCUMENT') && (
+              {template.headerType === "IMAGE" && (
                 <div className="space-y-2">
-                  <Label>Upload {template.headerType}</Label>
+                  <Label>Upload IMAGE</Label>
                   <div className="flex items-center gap-4">
                     <Button
                       variant="outline"
@@ -432,14 +438,11 @@ export default function TemplateCreator() {
                       <input
                         id="file-input"
                         type="file"
-                        accept={template.headerType === 'IMAGE' ? 'image/*' : template.headerType === 'VIDEO' ? 'video/*' : '*'}
+                        accept="image/*"
                         className="absolute inset-0 opacity-0 cursor-pointer"
                         onChange={handleFileUpload}
                       />
                     </Button>
-                    {template.header.text && (
-                      <span className="text-sm text-gray-600 truncate">{template.header.text}</span>
-                    )}
                   </div>
                 </div>
               )}
@@ -463,9 +466,9 @@ export default function TemplateCreator() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Label className="text-sm font-medium">Body*</Label>
-                  <Button variant="outline" size="sm" onClick={() => handleAddVariable('body')}>
+                  {/* <Button variant="outline" size="sm" onClick={() => handleAddVariable('body')}>
                     <Plus className="h-4 w-4 mr-1" /> Add Variable
-                  </Button>
+                  </Button> */}
                 </div>
                 <span className="text-xs text-gray-500">{template.body.text.length}/1024</span>
               </div>
@@ -643,12 +646,8 @@ export default function TemplateCreator() {
             )}
 
             {/* Header Preview */}
-            {template.headerType === 'IMAGE' && template.header.text && (
-              <img
-                src={template.header.text} // Use the file path or URL
-                alt="Header Image"
-                className="rounded-lg w-full"
-              />
+            {template.headerType === "IMAGE" && imagePreview && (
+              <img src={imagePreview} alt="Header Preview" className="rounded-lg w-full" />
             )}
 
             {template.headerType === 'VIDEO' && template.header.text && (

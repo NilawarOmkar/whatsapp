@@ -36,7 +36,7 @@ import { NextResponse } from 'next/server';
 
 export async function GET() {
     try {
-        const response = await fetch('http://localhost:3001/rabbitmq/replies');
+        const response = await fetch('http://74.207.235.105:3000/rabbitmq/replies');
         const messages = await response.json();
 
         if (!response.ok) throw new Error('Failed to fetch messages');
