@@ -125,7 +125,7 @@ export default function SendMessagePage(): JSX.Element {
   useEffect(() => {
     async function fetchGroups() {
       try {
-        const response = await fetch("http://74.207.235.105:3000/groups/");
+        const response = await fetch("/api/groups");
         if (!response.ok) throw new Error("Failed to fetch groups");
         const data: Group[] = await response.json();
         setGroups(data);
@@ -149,7 +149,7 @@ export default function SendMessagePage(): JSX.Element {
     };
   
     try {
-      const response = await fetch(`http://74.207.235.105:3000/groups/${editingGroup ? editingGroup.id : ""}`, {
+      const response = await fetch(`/api/groups/${editingGroup ? editingGroup.id : ""}`, {
         method: editingGroup ? "PUT" : "POST",
         headers: {
           "Content-Type": "application/json",
@@ -159,7 +159,7 @@ export default function SendMessagePage(): JSX.Element {
   
       if (!response.ok) throw new Error("Failed to save group");
   
-      const updatedGroups = await fetch("http://74.207.235.105:3000/groups/").then((res) => res.json());
+      const updatedGroups = await fetch("/api/groups").then((res) => res.json());
       setGroups(updatedGroups);
   
       setNewGroupName("");
@@ -188,13 +188,13 @@ export default function SendMessagePage(): JSX.Element {
   // Delete a group
   const deleteGroup = async (groupId: string) => {
     try {
-      const response = await fetch(`http://74.207.235.105:3000/groups/${groupId}`, {
+      const response = await fetch(`/api/groups/${groupId}`, {
         method: "DELETE",
       });
-
+  
       if (!response.ok) throw new Error("Failed to delete group");
-
-      const updatedGroups = await fetch("http://74.207.235.105:3000/groups/").then((res) => res.json());
+  
+      const updatedGroups = await fetch("/api/groups").then((res) => res.json());
       setGroups(updatedGroups);
       setSelectedGroups((prev) => prev.filter((g) => g.id !== groupId));
     } catch (error) {

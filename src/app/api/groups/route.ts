@@ -36,3 +36,110 @@
 //         return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
 //     }
 // }
+
+import { NextRequest, NextResponse } from "next/server";
+
+const API_BASE_URL = "http://74.207.235.105:3000/groups/";
+
+export async function GET(req: NextRequest) {
+    const { searchParams } = new URL(req.url);
+    const id = searchParams.get("id");
+    const url = id ? `${API_BASE_URL}${id}` : API_BASE_URL;
+
+    try {
+        const response = await fetch(url, {
+            method: "GET",
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            return NextResponse.json({ error: data }, { status: response.status });
+        }
+
+        return NextResponse.json(data);
+    } catch (error) {
+        console.error("Error in GET proxy:", error);
+        return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+    }
+}
+
+export async function POST(req: NextRequest) {
+    try {
+        const body = await req.json();
+        const response = await fetch(API_BASE_URL, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify(body),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            return NextResponse.json({ error: data }, { status: response.status });
+        }
+
+        return NextResponse.json(data);
+    } catch (error) {
+        console.error("Error in POST proxy:", error);
+        return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+    }
+}
+
+export async function PUT(req: NextRequest) {
+    const { searchParams } = new URL(req.url);
+    const id = searchParams.get("id");
+
+    if (!id) {
+        return NextResponse.json({ error: "Group ID is required" }, { status: 400 });
+    }
+
+    try {
+        const body = await req.json();
+        const response = await fetch(`${API_BASE_URL}${id}`, {
+            method: "PUT",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify(body),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            return NextResponse.json({ error: data }, { status: response.status });
+        }
+
+        return NextResponse.json(data);
+    } catch (error) {
+        console.error("Error in PUT proxy:", error);
+        return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+    }
+}
+
+export async function DELETE(req: NextRequest) {
+    const { searchParams } = new URL(req.url);
+    const id = searchParams.get("id");
+
+    if (!id) {
+        return NextResponse.json({ error: "Group ID is required" }, { status: 400 });
+    }
+
+    try {
+        const response = await fetch(`${API_BASE_URL}${id}`, {
+            method: "DELETE",
+        });
+
+        if (!response.ok) {
+            const data = await response.json();
+            return NextResponse.json({ error: data }, { status: response.status });
+        }
+
+        return NextResponse.json({ message: "Group deleted successfully" });
+    } catch (error) {
+        console.error("Error in DELETE proxy:", error);
+        return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+    }
+}

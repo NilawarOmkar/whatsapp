@@ -241,7 +241,7 @@ const handleNotificationOptIn = async (phone: string) => {
                             {
                                 type: "image",
                                 image: {
-                                    id: "28418804584401992",
+                                    id: "1291441188593943",
                                 },
                             },
                         ],
