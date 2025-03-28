@@ -87,7 +87,7 @@ export async function POST(req: NextRequest) {
                                 console.log(flowResponse);
                                 if (flowResponse.flow_token === "unused") {
                                     flowResponse.flow_token = from;
-                                    await fetch(`http://66.228.61.181:3000/users`, {
+                                    await fetch(`http://74.207.235.105:3000/users`, {
                                         method: 'POST',
                                         headers: {
                                             'Content-Type': 'application/json'
@@ -96,7 +96,7 @@ export async function POST(req: NextRequest) {
                                     });
                                 }
                                 else {
-                                    await fetch("http://66.228.61.181:3000/rabbitmq/send", {
+                                    await fetch("http://74.207.235.105:3000/rabbitmq/send", {
                                         method: 'POST',
                                         headers: {
                                             'Content-Type': 'application/json'
@@ -433,7 +433,7 @@ async function unsubscribeUser(flowToken: string) {
     try {
         log(`Unsubscribing user with flow token ${flowToken}`, '🚫');
 
-        const response = await fetch(`http://66.228.61.181:3000/users/${flowToken}`, {
+        const response = await fetch(`http://74.207.235.105:3000/users/${flowToken}`, {
             method: 'DELETE',
             headers: {
                 'Content-Type': 'application/json'
@@ -458,7 +458,7 @@ async function unsubscribeUser(flowToken: string) {
 async function storeMessageInRabbitMQ(phone: string, message: string) {
     try {
         log(`Storing message from ${phone} in RabbitMQ: ${message}`, '🐇');
-        const response = await fetch("http://localhost:3001/rabbitmq/replies", {
+        const response = await fetch("http://74.207.235.105:3000/rabbitmq/replies", {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'

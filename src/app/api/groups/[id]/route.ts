@@ -2,11 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 
 const API_BASE_URL = "http://74.207.235.105:3000/groups/";
 
-export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
-    const { id } = params; // Access params from context
+export async function PUT(req: NextRequest, context: any) {
+    const params = await context.params; // Await the params object
+    const { id } = params;
 
     if (!id) {
-        return NextResponse.json({ error: "Group ID is required" }, { status: 400 });
+        return NextResponse.json({ error: "Group ID is required in the URL" }, { status: 400 });
     }
 
     try {
@@ -22,7 +23,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         const data = await response.json();
 
         if (!response.ok) {
-            return NextResponse.json({ error: data }, { status: response.status });
+            return NextResponse.json({ error: data.message || "Failed to update group" }, { status: response.status });
         }
 
         return NextResponse.json(data);
@@ -32,11 +33,12 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     }
 }
 
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
-    const { id } = params; // Access params from context
+export async function DELETE(req: NextRequest, context: any) {
+    const params = await context.params; // Await the params object
+    const { id } = params;
 
     if (!id) {
-        return NextResponse.json({ error: "Group ID is required" }, { status: 400 });
+        return NextResponse.json({ error: "Group ID is required in the URL" }, { status: 400 });
     }
 
     try {
@@ -46,7 +48,7 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
 
         if (!response.ok) {
             const data = await response.json();
-            return NextResponse.json({ error: data }, { status: response.status });
+            return NextResponse.json({ error: data.message || "Failed to delete group" }, { status: response.status });
         }
 
         return NextResponse.json({ message: "Group deleted successfully" });

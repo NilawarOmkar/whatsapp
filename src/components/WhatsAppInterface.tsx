@@ -398,7 +398,8 @@ export default function SendMessagePage(): JSX.Element {
                 parameter = {
                   type: "document",
                   document: {
-                    link: component.example?.url || component.example
+                    // link: component.example?.url || component.example
+                    id: "1074133091421891"
                   }
                 };
                 break;
@@ -406,7 +407,8 @@ export default function SendMessagePage(): JSX.Element {
                 parameter = {
                   type: "video",
                   video: {
-                    link: component.example?.url || component.example
+                    // link: component.example?.url || component.example
+                    id: "1318110525911243"
                   }
                 };
                 break;

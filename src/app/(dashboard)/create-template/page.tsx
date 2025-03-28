@@ -42,6 +42,8 @@ type TemplateState = {
 
 export default function TemplateCreator() {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [videoPreview, setVideoPreview] = useState<string | null>(null);
+  const [documentPreview, setDocumentPreview] = useState<{ url: string; name: string } | null>(null);
   const [flows, setFlows] = useState<any[]>([])
   const [template, setTemplate] = useState<TemplateState>({
     category: 'MARKETING',
@@ -312,14 +314,20 @@ export default function TemplateCreator() {
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagePreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+
+    // Create preview based on header type
+    if (template.headerType === 'IMAGE') {
+      setImagePreview(URL.createObjectURL(file));
+    } else if (template.headerType === 'VIDEO') {
+      setVideoPreview(URL.createObjectURL(file));
+    } else if (template.headerType === 'DOCUMENT') {
+      setDocumentPreview({
+        url: URL.createObjectURL(file),
+        name: file.name
+      });
     }
 
+    // Upload logic remains the same
     try {
       const formData = new FormData();
       formData.append('file', file);
@@ -329,20 +337,17 @@ export default function TemplateCreator() {
         body: formData,
       });
 
-      if (!uploadResponse.ok) {
-        throw new Error('Failed to upload file');
-      }
+      if (!uploadResponse.ok) throw new Error('Failed to upload file');
 
       const { fileHandle } = await uploadResponse.json();
-
       setTemplate(prev => ({
         ...prev,
         header: { ...prev.header, text: fileHandle },
       }));
 
     } catch (error) {
-      console.error('File upload failed:', error);
-      alert('Failed to upload file. Please try again.');
+      console.error('Upload failed:', error);
+      alert('Upload failed. Please try again.');
     }
   };
 
@@ -439,6 +444,52 @@ export default function TemplateCreator() {
                         id="file-input"
                         type="file"
                         accept="image/*"
+                        className="absolute inset-0 opacity-0 cursor-pointer"
+                        onChange={handleFileUpload}
+                      />
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {template.headerType === 'VIDEO' && (
+                <div className="space-y-2">
+                  <Label>Upload VIDEO</Label>
+                  <div className="flex items-center gap-4">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="relative overflow-hidden"
+                      onClick={() => document.getElementById('video-input')?.click()}
+                    >
+                      Select Video
+                      <input
+                        id="video-input"
+                        type="file"
+                        accept="video/*"
+                        className="absolute inset-0 opacity-0 cursor-pointer"
+                        onChange={handleFileUpload}
+                      />
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {template.headerType === 'DOCUMENT' && (
+                <div className="space-y-2">
+                  <Label>Upload DOCUMENT</Label>
+                  <div className="flex items-center gap-4">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="relative overflow-hidden"
+                      onClick={() => document.getElementById('document-input')?.click()}
+                    >
+                      Select Document
+                      <input
+                        id="document-input"
+                        type="file"
+                        accept=".pdf,.doc,.docx,.txt"
                         className="absolute inset-0 opacity-0 cursor-pointer"
                         onChange={handleFileUpload}
                       />
@@ -634,55 +685,52 @@ export default function TemplateCreator() {
           </h3>
 
           <div className="bg-gray-50 p-4 rounded-lg shadow-sm">
-            {template.header.text && (
+            {/* Header Preview */}
+            {template.headerType === 'TEXT' && template.header.text && (
               <div className="bg-green-600 text-white rounded-t-lg p-3 mb-2">
                 <p className="text-center font-medium">
-                  {template.header.text.match(/(\{\{\w+\}\}|[^{}]+)/g)?.map((part, i) => {
-                    const match = part.match(/\{\{(\w+)\}\}/);
-                    return match ? match[1] : part;
-                  })}
+                  {template.header.text}
                 </p>
               </div>
             )}
 
-            {/* Header Preview */}
-            {template.headerType === "IMAGE" && imagePreview && (
-              <img src={imagePreview} alt="Header Preview" className="rounded-lg w-full" />
+            {template.headerType === 'IMAGE' && imagePreview && (
+              <img src={imagePreview} alt="Header Preview" className="rounded-lg w-full mb-2" />
             )}
 
-            {template.headerType === 'VIDEO' && template.header.text && (
-              <video controls className="rounded-lg w-full">
-                <source src={template.header.text} type="video/mp4" />
+            {template.headerType === 'VIDEO' && videoPreview && (
+              <video controls className="rounded-lg w-full mb-2">
+                <source src={videoPreview} type="video/mp4" />
                 Your browser does not support the video tag.
               </video>
             )}
 
-            {template.headerType === 'DOCUMENT' && template.header.text && (
-              <a
-                href={template.header.text} // Use the file path or URL
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-600 underline"
-              >
-                View Document
-              </a>
+            {template.headerType === 'DOCUMENT' && documentPreview && (
+              <div className="bg-white p-3 rounded-lg mb-2">
+                <div className="flex items-center gap-2">
+                  <svg className="h-8 w-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  <p className="text-sm font-medium">{documentPreview.name}</p>
+                </div>
+              </div>
             )}
 
+            {/* Body Preview */}
             <div className="bg-white p-3 rounded-lg">
               <p className="text-gray-800 whitespace-pre-wrap">
-                {template.body.text.match(/(\{\{\w+\}\}|[^{}]+)/g)?.map((part, i) => {
-                  const match = part.match(/\{\{(\w+)\}\}/);
-                  return match ? match[1] : part;
-                })}
+                {template.body.text}
               </p>
             </div>
 
+            {/* Footer Preview */}
             {template.footer && (
               <div className="mt-2 p-3 bg-gray-100 rounded-b-lg">
                 <p className="text-xs text-gray-600">{template.footer}</p>
               </div>
             )}
 
+            {/* Buttons Preview */}
             {template.buttons.length > 0 && (
               <div className="mt-4 space-y-2">
                 {template.buttons.map((button, index) => (
