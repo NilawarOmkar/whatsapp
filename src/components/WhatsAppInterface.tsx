@@ -103,14 +103,16 @@ export default function SendMessagePage(): JSX.Element {
         const messagesRes = await fetch("/api/messages");
         if (!messagesRes.ok) throw new Error("Failed to fetch messages");
         const { messages: apiMessages } = await messagesRes.json();
+        console.log(messages)
 
         const receivedMessages: Message[] = apiMessages.map((msg: any) => ({
-          content: msg.message,
+          content: msg.reply_data.message,
           isSent: false,
-          timestamp: new Date(msg.timestamp),
+          timestamp: new Date(msg.reply_data.timestamp),
           status: 'delivered',
-          phone: msg.phone_number
+          phone: msg.reply_data.phone_number
         }));
+        
 
         setMessages(prev => [...receivedMessages, ...prev]);
       } catch (error) {
